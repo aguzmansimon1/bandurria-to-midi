@@ -140,7 +140,7 @@ class BandurriaTranscriberGUI:
         log_frame = ttk.Frame(main_container)
         log_frame.pack(fill="both", expand=True, pady=(0, 12))
         
-        self.txt_log = tk.Text(log_frame, height=8, bg="#0f172a", fg="#cbd5e1", font=("Consolas", 9.5), relief="flat", wrap="word", insertbackground="#ffffff")
+        self.txt_log = tk.Text(log_frame, height=8, bg="#0f172a", fg="#cbd5e1", font=("Consolas", 9), relief="flat", wrap="word", insertbackground="#ffffff")
         self.txt_log.pack(side="left", fill="both", expand=True)
         
         scrollbar = ttk.Scrollbar(log_frame, command=self.txt_log.yview)
