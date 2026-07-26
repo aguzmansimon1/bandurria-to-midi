@@ -504,11 +504,7 @@ HTML_TEMPLATE = r"""
             fileInfoBadge.innerHTML = `✅ Archivo Seleccionado:<br><strong>${file.name}</strong> (${sizeMB} MB)`;
             fileInfoBadge.style.display = 'block';
             dropzoneText.style.display = 'none';
-            dropzone.classList.add('has-file');
-        }
-    }
-
-    form.addEventListener('submit', async (e) => {
+            dropzone.classList.    form.addEventListener('submit', (e) => {
         e.preventDefault();
 
         const formData = new FormData();
@@ -533,32 +529,59 @@ HTML_TEMPLATE = r"""
         // UI Reset
         btnSubmit.disabled = true;
         btnSpinner.style.display = 'inline-block';
-        btnText.textContent = 'Iniciando proceso...';
+        btnText.textContent = 'Procesando...';
         statusCard.style.display = 'block';
         resultCard.style.display = 'none';
-        progressFill.style.width = '10%';
-        logBox.textContent = 'Enviando petición de transcripción...\n';
+        progressFill.style.width = '5%';
+        logBox.textContent = 'Iniciando envío...\n';
 
-        try {
-            const response = await fetch('/api/transcribe', {
-                method: 'POST',
-                body: formData
-            });
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/transcribe', true);
 
-            const data = await response.json();
+        // Progreso de subida en tiempo real para archivos grandes
+        if (currentMode === 'upload') {
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    const percentComplete = Math.round((event.loaded / event.total) * 30);
+                    const loadedMB = (event.loaded / (1024 * 1024)).toFixed(1);
+                    const totalMB = (event.total / (1024 * 1024)).toFixed(1);
+                    progressFill.style.width = `${percentComplete}%`;
+                    logBox.textContent = `Subiendo archivo multimedia al servidor local: ${loadedMB} MB de ${totalMB} MB (${Math.round((event.loaded/event.total)*100)}%)...\n`;
+                }
+            };
+        }
 
-            if (data.success && data.job_id) {
-                // Iniciar Sondeo (Polling) en segundo plano
-                btnText.textContent = 'Procesando Bandurria...';
-                pollJobStatus(data.job_id);
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.success && data.job_id) {
+                        btnText.textContent = 'Transcribiendo Bandurria...';
+                        pollJobStatus(data.job_id);
+                    } else {
+                        alert('Error al iniciar: ' + (data.error || 'Desconocido'));
+                        logBox.textContent += `❌ Error: ${data.error}\n`;
+                        resetBtn();
+                    }
+                } catch(err) {
+                    alert('Respuesta no válida del servidor');
+                    resetBtn();
+                }
             } else {
-                alert('Error al iniciar: ' + (data.error || 'Desconocido'));
-                logBox.textContent += `❌ Error: ${data.error}\n`;
+                alert(`Error HTTP ${xhr.status}: No se pudo completar la transferencia.`);
+                logBox.textContent += `❌ Error HTTP ${xhr.status}\n`;
                 resetBtn();
             }
-        } catch (err) {
-            alert('Error de conexión con el servidor: ' + err.message);
-            logBox.textContent += `❌ Error de red: ${err.message}\n`;
+        };
+
+        xhr.onerror = () => {
+            alert('Error de conexión con el servidor.');
+            logBox.textContent += '❌ Error de red durante la subida.\n';
+            resetBtn();
+        };
+
+        xhr.send(formData);
+    });
             resetBtn();
         }
     });
