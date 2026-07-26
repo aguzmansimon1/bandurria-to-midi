@@ -171,8 +171,9 @@ class BandurriaTranscriberGUI:
         self.btn_convert = ttk.Button(action_frame, text="🎵 CONVERTIR Y TRANSCRIBIR A MIDI", style="Primary.TButton", command=self.start_transcription_thread)
         self.btn_convert.pack(fill="x", ipady=8)
 
-        # Frame de botones tras completar la transcripción
+        # Frame de botones visibles en todo momento
         self.post_frame = ttk.Frame(action_frame)
+        self.post_frame.pack(fill="x", pady=(10, 0))
         
         self.btn_open_folder = ttk.Button(self.post_frame, text="📂 Abrir Carpeta", style="Secondary.TButton", command=self.open_output_folder)
         self.btn_open_folder.pack(side="left", fill="x", expand=True, padx=(0, 6))
@@ -247,7 +248,6 @@ class BandurriaTranscriberGUI:
             subdiv = 16
             
         self.btn_convert.config(state="disabled")
-        self.post_frame.pack_forget()
         self.progress_var.set(10)
         self.txt_log.delete(1.0, tk.END)
         self.log("▶ Iniciando transcripción de Bandurria...")
@@ -288,20 +288,22 @@ class BandurriaTranscriberGUI:
             self.root.after(0, lambda: self.btn_convert.config(state="normal"))
 
     def on_transcription_success(self, midi_path):
-        self.post_frame.pack(fill="x", pady=(10, 0))
         messagebox.showinfo("¡Transcripción Completada!", f"¡Archivo MIDI generado con éxito!\n\nRuta: {midi_path}\n\nPuedes hacer clic en 'Abrir en MuseScore' para ver tu partitura.")
 
     def open_output_folder(self):
-        if self.last_midi_output and os.path.exists(os.path.dirname(self.last_midi_output)):
-            folder = os.path.dirname(self.last_midi_output)
+        midi_path = self.last_midi_output or self.entry_output.get().strip()
+        if midi_path and os.path.exists(os.path.dirname(midi_path)):
+            folder = os.path.dirname(midi_path)
             subprocess.run(["explorer", folder])
+        else:
+            messagebox.showwarning("Aviso", "No se encontró la carpeta del archivo MIDI.")
 
     def open_in_musescore(self):
-        if not self.last_midi_output or not os.path.exists(self.last_midi_output):
-            messagebox.showwarning("Aviso", "No se encontró el archivo MIDI generado.")
+        midi_path = self.last_midi_output or self.entry_output.get().strip()
+        if not midi_path or not os.path.exists(midi_path):
+            messagebox.showwarning("Aviso", f"El archivo MIDI no existe aún en el disco:\n'{midi_path}'\n\nPor favor, ejecuta primero la conversión.")
             return
             
-        midi_path = self.last_midi_output
         possible_paths = [
             r"C:\Program Files\MuseScore 4\bin\MuseScore4.exe",
             r"C:\Program Files\MuseScore 3\bin\MuseScore3.exe",
