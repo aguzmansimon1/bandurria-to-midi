@@ -29,6 +29,17 @@ def save_config(data):
     except Exception:
         pass
 
+def get_unique_midi_path(path):
+    if not os.path.exists(path):
+        return path
+    base, ext = os.path.splitext(path)
+    counter = 1
+    new_path = f"{base}({counter}){ext}"
+    while os.path.exists(new_path):
+        counter += 1
+        new_path = f"{base}({counter}){ext}"
+    return new_path
+
 class BandurriaTranscriberGUI:
     def __init__(self, root):
         self.root = root
@@ -230,17 +241,20 @@ class BandurriaTranscriberGUI:
         self.btn_convert = ttk.Button(action_frame, text="🎵 CONVERTIR Y TRANSCRIBIR A MIDI", style="Primary.TButton", command=self.start_transcription_thread)
         self.btn_convert.pack(fill="x", ipady=8)
 
-        # Frame de botones visibles en todo momento
+        # Frame de botones visibles en todo momento (Abrir Carpeta / Abrir MIDI / Abrir MuseScore)
         self.post_frame = ttk.Frame(action_frame)
         self.post_frame.pack(fill="x", pady=(10, 0))
         
         self.btn_open_folder = ttk.Button(self.post_frame, text="📂 Abrir Carpeta", style="Secondary.TButton", command=self.open_output_folder)
-        self.btn_open_folder.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self.btn_open_folder.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        
+        self.btn_open_midi = ttk.Button(self.post_frame, text="🎹 Abrir MIDI", style="Secondary.TButton", command=self.open_midi_file)
+        self.btn_open_midi.pack(side="left", fill="x", expand=True, padx=(2, 4))
         
         self.btn_open_musescore = ttk.Button(self.post_frame, text="🎼 Abrir en MuseScore", style="Secondary.TButton", command=self.open_in_musescore)
-        self.btn_open_musescore.pack(side="right", fill="x", expand=True, padx=(6, 0))
+        self.btn_open_musescore.pack(side="left", fill="x", expand=True, padx=(2, 0))
         
-        self.last_midi_output = None
+        self.last_midi_output = default_out
 
     def log(self, message):
         def _update():
@@ -258,7 +272,8 @@ class BandurriaTranscriberGUI:
             self.entry_input.insert(0, filename)
             
             base, _ = os.path.splitext(filename)
-            out_path = base + ".mid"
+            raw_out = base + ".mid"
+            out_path = get_unique_midi_path(raw_out)
             self.entry_output.delete(0, tk.END)
             self.entry_output.insert(0, out_path)
             self.last_midi_output = out_path
@@ -295,6 +310,10 @@ class BandurriaTranscriberGUI:
             midi_path = self.entry_output.get().strip()
             if not midi_path:
                 midi_path = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche_madrileña_Tablatura_Piano.mid"
+            
+            midi_path = get_unique_midi_path(midi_path)
+            self.entry_output.delete(0, tk.END)
+            self.entry_output.insert(0, midi_path)
                 
             try:
                 bpm = 120 if self.var_auto_bpm.get() else int(self.spin_bpm.get())
@@ -328,6 +347,10 @@ class BandurriaTranscriberGUI:
             messagebox.showerror("Error de Salida", "Por favor especifica una ruta válida para el archivo MIDI de salida.")
             return
             
+        midi_path = get_unique_midi_path(midi_path)
+        self.entry_output.delete(0, tk.END)
+        self.entry_output.insert(0, midi_path)
+
         save_config({"last_input_path": audio_path, "last_output_path": midi_path})
 
         if self.var_auto_bpm.get():
@@ -391,7 +414,7 @@ class BandurriaTranscriberGUI:
             "last_input_path": self.entry_input.get().strip(),
             "last_output_path": midi_path
         })
-        messagebox.showinfo("¡Transcripción Completada!", f"¡Archivo MIDI generado con éxito!\n\nRuta: {midi_path}\n\nPuedes hacer clic en 'Abrir en MuseScore' para ver tu partitura.")
+        messagebox.showinfo("¡Transcripción Completada!", f"¡Archivo MIDI generado con éxito!\n\nRuta: {midi_path}\n\nPuedes hacer clic en 'Abrir MIDI' o 'Abrir en MuseScore' para escuchar tu partitura.")
 
     def open_output_folder(self):
         midi_path = self.last_midi_output or self.entry_output.get().strip()
@@ -400,6 +423,16 @@ class BandurriaTranscriberGUI:
             subprocess.run(["explorer", folder])
         else:
             messagebox.showwarning("Aviso", "No se encontró la carpeta del archivo MIDI.")
+
+    def open_midi_file(self):
+        midi_path = self.last_midi_output or self.entry_output.get().strip()
+        if not midi_path or not os.path.exists(midi_path):
+            messagebox.showwarning("Aviso", f"El archivo MIDI no existe aún en el disco:\n'{midi_path}'\n\nPor favor, ejecuta primero la conversión.")
+            return
+        try:
+            os.startfile(midi_path)
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo abrir el archivo MIDI:\n{str(e)}")
 
     def open_in_musescore(self):
         midi_path = self.last_midi_output or self.entry_output.get().strip()

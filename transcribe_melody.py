@@ -121,7 +121,7 @@ def calculate_note_velocities(notes, y, sr):
         
     return notes
 
-def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=170, fmax=1050, log_callback=None):
+def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=100, fmax=1800, log_callback=None):
     def log(msg):
         print(msg)
         if log_callback:
@@ -144,14 +144,12 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     log("Aislando melodía armónica de la bandurria con filtrado HPSS...")
     y_harmonic, y_percussive = librosa.effects.hpss(y)
     
-    # 2. Detección de ataques de púa (Note Onsets)
+    # 2. RMS de energía para filtrado de silencios y ruidos
     hop_length = 512
-    log("Detectando pulsos y ataques físicos de púa (Onset Detection)...")
-    onset_frames = librosa.onset.onset_detect(y=y_harmonic, sr=sr, hop_length=hop_length, backtrack=True)
-    onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length)
+    rms = librosa.feature.rms(y=y_harmonic, hop_length=hop_length)[0]
     
-    # 3. Detección de pitch pYIN acotada a las 6 cuerdas de la Bandurria (170 Hz a 1050 Hz)
-    log("Calculando afinación de notas (170 Hz a 1050 Hz - 6 Cuerdas)...")
+    # 3. Detección de pitch pYIN acotada a la tesitura de la bandurria (100 Hz a 1800 Hz)
+    log(f"Calculando afinación de notas ({fmin} Hz a {fmax} Hz)...")
     f0, voiced_flag, voiced_probs = librosa.pyin(
         y_harmonic, 
         fmin=fmin, 
@@ -161,44 +159,65 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
         fill_na=0.0
     )
     
-    # Filtrado medfilt para eliminar armónicos espurios
+    # Suavizado medfilt para eliminar saltos rápidos
     import scipy.signal
     f0 = scipy.signal.medfilt(f0, kernel_size=5)
     
-    log("Segmentando notas limpias en cada pulso...")
+    log("Segmentando notas por tono continuo...")
+    times = librosa.frames_to_time(np.arange(len(f0)), sr=sr, hop_length=hop_length)
     notes = []
+    current_note = None
     
-    # Segmentación por intervalos entre ataques de púa
-    for i in range(len(onset_frames)):
-        start_f = onset_frames[i]
-        end_f = onset_frames[i+1] if i + 1 < len(onset_frames) else len(f0)
+    rms_threshold = 0.015
+    
+    for i in range(len(f0)):
+        f = f0[i]
+        r = rms[min(i, len(rms)-1)]
         
-        start_t = onset_times[i]
-        end_t = librosa.frames_to_time(end_f, sr=sr, hop_length=hop_length) if i + 1 < len(onset_frames) else duracion
-        
-        segment_f0 = f0[start_f:end_f]
-        valid_freqs = [f for f in segment_f0 if f > 0]
-        
-        if len(valid_freqs) > 0 and (end_t - start_t) >= 0.05:
-            med_freq = float(np.median(valid_freqs))
-            midi_pitch = float(librosa.hz_to_midi(med_freq))
+        # Filtro de silencio por energía RMS
+        if r < rms_threshold:
+            f = 0.0
+            
+        if f > 0:
+            midi_pitch = librosa.hz_to_midi(f)
             rounded_pitch = int(round(midi_pitch))
             
-            notes.append({
-                'pitch': rounded_pitch,
-                'start': start_t,
-                'end': end_t,
-                'pitches': [midi_pitch]
-            })
+            if current_note is None:
+                current_note = {
+                    'pitch': rounded_pitch,
+                    'start': times[i],
+                    'end': times[i] + hop_length/sr,
+                    'pitches': [midi_pitch]
+                }
+            else:
+                pitch_diff = abs(midi_pitch - np.median(current_note['pitches']))
+                if pitch_diff <= 1.2:
+                    current_note['end'] = times[i] + hop_length/sr
+                    current_note['pitches'].append(midi_pitch)
+                else:
+                    notes.append(current_note)
+                    current_note = {
+                        'pitch': rounded_pitch,
+                        'start': times[i],
+                        'end': times[i] + hop_length/sr,
+                        'pitches': [midi_pitch]
+                    }
+        else:
+            if current_note is not None:
+                notes.append(current_note)
+                current_note = None
+                
+    if current_note is not None:
+        notes.append(current_note)
 
-    # Filtrar notas ruidosas ultra cortas (<60ms)
-    min_note_duration = 0.06
+    # Filtrar notas ruidosas ultra cortas (<100ms)
+    min_note_duration = 0.10
     filtered_notes = [n for n in notes if (n['end'] - n['start']) >= min_note_duration]
     log(f"Notas iniciales detectadas: {len(filtered_notes)}")
     
     # 1. Unificación de Trémolos de Bandurria
     log("Unificando trémolos de púa de la bandurria...")
-    merged_notes = merge_tremolo_notes(filtered_notes, max_gap=0.15, max_pitch_diff=1.0)
+    merged_notes = merge_tremolo_notes(filtered_notes, max_gap=0.18, max_pitch_diff=1.0)
     log(f"Notas tras unificar trémolo: {len(merged_notes)}")
     
     # 2. Cuantización rítmica para MuseScore

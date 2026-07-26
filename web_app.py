@@ -586,9 +586,6 @@ HTML_TEMPLATE = r"""
 
         xhr.send(formData);
     });
-            resetBtn();
-        }
-    });
 
     function resetBtn() {
         btnSubmit.disabled = false;
