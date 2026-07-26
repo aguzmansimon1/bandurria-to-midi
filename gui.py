@@ -40,11 +40,16 @@ class BandurriaTranscriberGUI:
         self.style.configure("TNotebook.Tab", background="#1e293b", foreground=self.TEXT_MUTED, padding=[16, 8], font=("Segoe UI", 10, "bold"))
         self.style.map("TNotebook.Tab", background=[("selected", self.ACCENT_PURPLE)], foreground=[("selected", "#ffffff")])
         
-        # Estilo de botones
+        # Estilo de botones y controles
         self.style.configure("Primary.TButton", font=("Segoe UI", 11, "bold"), background="#6366f1", foreground="#ffffff")
         self.style.map("Primary.TButton", background=[("active", "#4f46e5")])
         self.style.configure("Secondary.TButton", font=("Segoe UI", 9, "bold"), background="#334155", foreground="#ffffff")
         self.style.map("Secondary.TButton", background=[("active", "#475569")])
+        
+        self.style.configure("TCombobox", fieldbackground="#0f172a", background="#1e293b", foreground="#ffffff", arrowcolor="#ffffff", selectbackground="#818cf8")
+        self.style.map("TCombobox", fieldbackground=[("readonly", "#0f172a")], foreground=[("readonly", "#ffffff")])
+        self.style.configure("TCheckbutton", background=self.CARD_BG, foreground=self.TEXT_MAIN, font=("Segoe UI", 9))
+        self.style.map("TCheckbutton", background=[("active", self.CARD_BG)])
 
         # Header Title
         header_frame = ttk.Frame(root, padding=(20, 15, 20, 10))
@@ -115,21 +120,25 @@ class BandurriaTranscriberGUI:
         card_opts.pack(fill="x", pady=(0, 12))
         
         lbl_opts = ttk.Label(card_opts, text="Ajustes de Cuantización Rítmica (MuseScore):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
-        lbl_opts.grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 10))
+        lbl_opts.grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
         
-        lbl_bpm = ttk.Label(card_opts, text="Tempo Estimado (BPM):", style="Card.TLabel")
-        lbl_bpm.grid(row=1, column=0, sticky="w", padx=(0, 8))
+        self.var_auto_bpm = tk.BooleanVar(value=True)
+        chk_auto = ttk.Checkbutton(card_opts, text="⚡ Estimar Tempo (BPM) automáticamente de la canción", variable=self.var_auto_bpm, style="TCheckbutton", command=self.toggle_bpm_state)
+        chk_auto.grid(row=1, column=0, columnspan=4, sticky="w", pady=(0, 8))
         
-        self.spin_bpm = ttk.Spinbox(card_opts, from_=40, to=240, width=8, font=("Segoe UI", 10))
+        lbl_bpm = ttk.Label(card_opts, text="Tempo Manual (BPM):", style="Card.TLabel")
+        lbl_bpm.grid(row=2, column=0, sticky="w", padx=(0, 8))
+        
+        self.spin_bpm = tk.Spinbox(card_opts, from_=40, to=240, width=8, font=("Segoe UI", 10), bg="#0f172a", fg="#64748b", insertbackground="#ffffff", buttonbackground="#1e293b", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8", state="disabled")
         self.spin_bpm.set(120)
-        self.spin_bpm.grid(row=1, column=1, sticky="w", padx=(0, 24))
+        self.spin_bpm.grid(row=2, column=1, sticky="w", padx=(0, 24))
         
         lbl_subdiv = ttk.Label(card_opts, text="Subdivisión Rítmica:", style="Card.TLabel")
-        lbl_subdiv.grid(row=1, column=2, sticky="w", padx=(0, 8))
+        lbl_subdiv.grid(row=2, column=2, sticky="w", padx=(0, 8))
         
-        self.combo_subdiv = ttk.Combobox(card_opts, values=["1/16 (Semicorcheas)", "1/8 (Corcheas)", "1/4 (Negras)"], state="readonly", width=22, font=("Segoe UI", 9))
+        self.combo_subdiv = ttk.Combobox(card_opts, values=["1/16 (Semicorcheas)", "1/8 (Corcheas)", "1/4 (Negras)"], state="readonly", width=22, font=("Segoe UI", 9), style="TCombobox")
         self.combo_subdiv.current(0)
-        self.combo_subdiv.grid(row=1, column=3, sticky="w")
+        self.combo_subdiv.grid(row=2, column=3, sticky="w")
 
         # Barra de Progreso y Consola de Log
         self.progress_var = tk.DoubleVar()
@@ -188,6 +197,12 @@ class BandurriaTranscriberGUI:
             self.entry_output.delete(0, tk.END)
             self.entry_output.insert(0, filename)
 
+    def toggle_bpm_state(self):
+        if self.var_auto_bpm.get():
+            self.spin_bpm.config(state="disabled", fg="#64748b")
+        else:
+            self.spin_bpm.config(state="normal", fg="#ffffff")
+
     def start_transcription_thread(self):
         # Determinar pestaña activa
         selected_tab = self.notebook.index(self.notebook.select())
@@ -213,10 +228,13 @@ class BandurriaTranscriberGUI:
             messagebox.showerror("Error de Salida", "Por favor especifica una ruta válida para el archivo MIDI de salida.")
             return
             
-        try:
-            bpm = int(self.spin_bpm.get())
-        except ValueError:
-            bpm = 120
+        if self.var_auto_bpm.get():
+            bpm = "auto"
+        else:
+            try:
+                bpm = int(self.spin_bpm.get())
+            except ValueError:
+                bpm = 120
             
         subdiv_text = self.combo_subdiv.get()
         if "1/8" in subdiv_text:

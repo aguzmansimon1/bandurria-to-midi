@@ -205,6 +205,24 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     log(f"Notas tras unificar trémolo: {len(merged_notes)}")
     
     # 2. Cuantización rítmica para MuseScore
+    if bpm == "auto" or bpm == 0 or bpm is None:
+        log("Estimando tempo (BPM) automáticamente del audio de la canción...")
+        try:
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+            detected_bpm = int(round(float(np.atleast_1d(tempo)[0])))
+            if detected_bpm < 50 or detected_bpm > 200:
+                detected_bpm = 120
+            bpm = detected_bpm
+            log(f"Tempo detectado automáticamente: {bpm} BPM")
+        except Exception as e:
+            bpm = 120
+            log(f"No se pudo estimar el tempo automáticamente. Usando {bpm} BPM por defecto.")
+    else:
+        try:
+            bpm = int(bpm)
+        except ValueError:
+            bpm = 120
+
     if bpm > 0:
         log(f"Cuantizando ritmo a {bpm} BPM (Subdivisión: 1/{subdivision})...")
         final_notes = quantize_notes(merged_notes, bpm=bpm, subdivision=subdivision)
