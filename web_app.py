@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import uuid
 import threading
 import webbrowser
 from flask import Flask, render_template_string, request, jsonify, send_file
@@ -16,7 +17,11 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200 MB max limit
+# Permitir archivos de hasta 4 GB (vídeos largos de 1GB+)
+app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024 * 1024  
+
+# Almacenamiento en memoria para trabajos de transcripción en segundo plano
+JOBS = {}
 
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
@@ -292,7 +297,7 @@ HTML_TEMPLATE = r"""
             font-family: monospace;
             font-size: 0.82rem;
             color: #cbd5e1;
-            max-height: 120px;
+            max-height: 140px;
             overflow-y: auto;
             white-space: pre-wrap;
             line-height: 1.4;
@@ -379,8 +384,8 @@ HTML_TEMPLATE = r"""
 
         <!-- Mode 2: Local Path Input -->
         <div class="local-path-box" id="localPathBox">
-            <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Escribe o pega la ruta del archivo en tu PC:</label>
-            <input type="text" id="localPathInput" placeholder="Ej: G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria.mp4">
+            <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Escribe o pega la ruta completa del archivo en tu PC:</label>
+            <input type="text" id="localPathInput" placeholder="Ej: G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria2.mp4">
         </div>
 
         <!-- Form Options -->
@@ -455,7 +460,7 @@ HTML_TEMPLATE = r"""
             dropzone.style.display = 'none';
             localPathBox.style.display = 'block';
             if (!localPathInput.value) {
-                localPathInput.value = `G:\\Mi unidad\\AYo\\Tuna\\Canciones Tuna\\Noche madrileña\\Noche madrileña bandurria.mp4`;
+                localPathInput.value = `G:\\Mi unidad\\AYo\\Tuna\\Canciones Tuna\\Noche madrileña\\Noche madrileña bandurria2.mp4`;
             }
         }
     }
@@ -528,46 +533,80 @@ HTML_TEMPLATE = r"""
         // UI Reset
         btnSubmit.disabled = true;
         btnSpinner.style.display = 'inline-block';
-        btnText.textContent = 'Procesando Bandurria...';
+        btnText.textContent = 'Iniciando proceso...';
         statusCard.style.display = 'block';
         resultCard.style.display = 'none';
-        progressFill.style.width = '20%';
-        logBox.textContent = 'Iniciando transcripción de la bandurria...\n';
+        progressFill.style.width = '10%';
+        logBox.textContent = 'Enviando petición de transcripción...\n';
 
         try {
-            progressFill.style.width = '40%';
-            logBox.textContent += 'Cargando audio y ejecutando detección de pitch pYIN...\n';
-
             const response = await fetch('/api/transcribe', {
                 method: 'POST',
                 body: formData
             });
 
-            progressFill.style.width = '80%';
-            logBox.textContent += 'Unificando notas de trémolo y aplicando cuantización para MuseScore...\n';
-
             const data = await response.json();
 
-            if (data.success) {
-                progressFill.style.width = '100%';
-                logBox.textContent += '¡Éxito! Transcripción de Bandurria completada.\n';
-
-                downloadBtn.href = data.download_url;
-                downloadBtn.setAttribute('download', data.filename);
-                resultCard.style.display = 'block';
+            if (data.success && data.job_id) {
+                // Iniciar Sondeo (Polling) en segundo plano
+                btnText.textContent = 'Procesando Bandurria...';
+                pollJobStatus(data.job_id);
             } else {
-                alert('Error: ' + data.error);
+                alert('Error al iniciar: ' + (data.error || 'Desconocido'));
                 logBox.textContent += `❌ Error: ${data.error}\n`;
+                resetBtn();
             }
         } catch (err) {
-            alert('Error de procesamiento: ' + err.message);
-            logBox.textContent += `❌ Error: ${err.message}\n`;
-        } finally {
-            btnSubmit.disabled = false;
-            btnSpinner.style.display = 'none';
-            btnText.textContent = '🎵 Convertir y Transcribir a MIDI';
+            alert('Error de conexión con el servidor: ' + err.message);
+            logBox.textContent += `❌ Error de red: ${err.message}\n`;
+            resetBtn();
         }
     });
+
+    function resetBtn() {
+        btnSubmit.disabled = false;
+        btnSpinner.style.display = 'none';
+        btnText.textContent = '🎵 Convertir y Transcribir a MIDI';
+    }
+
+    function pollJobStatus(jobId) {
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/status/${jobId}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    clearInterval(interval);
+                    alert('Error en trabajo: ' + data.error);
+                    resetBtn();
+                    return;
+                }
+
+                // Actualizar barra de progreso y logs
+                progressFill.style.width = `${data.progress}%`;
+                if (data.logs && data.logs.length > 0) {
+                    logBox.textContent = data.logs.join('\n') + '\n';
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
+
+                if (data.status === 'completed') {
+                    clearInterval(interval);
+                    logBox.textContent += '\n¡Éxito! Transcripción de Bandurria completada.\n';
+                    downloadBtn.href = data.download_url;
+                    downloadBtn.setAttribute('download', data.filename);
+                    resultCard.style.display = 'block';
+                    resetBtn();
+                } else if (data.status === 'failed') {
+                    clearInterval(interval);
+                    logBox.textContent += `\n❌ Error en procesamiento: ${data.error}\n`;
+                    alert('Error de transcripción: ' + data.error);
+                    resetBtn();
+                }
+            } catch (err) {
+                console.error('Error durante sondeo:', err);
+            }
+        }, 1000);
+    }
 </script>
 
 </body>
@@ -582,8 +621,9 @@ def index():
 def api_transcribe():
     bpm = int(request.form.get('bpm', 120))
     subdivision = int(request.form.get('subdivision', 16))
-    
     local_path = request.form.get('local_path', '').strip()
+    
+    job_id = str(uuid.uuid4())
     
     if local_path:
         if not os.path.exists(local_path):
@@ -596,31 +636,86 @@ def api_transcribe():
             
         file = request.files['audio']
         filename = file.filename
-        safe_name = f"upload_{int(time.time())}_{secure_filename(filename)}"
-        if not safe_name.endswith(os.path.splitext(filename)[1]):
-            safe_name += os.path.splitext(filename)[1]
-            
+        ext = os.path.splitext(filename)[1]
+        safe_name = f"upload_{job_id[:8]}{ext}"
         input_path = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
         file.save(input_path)
-    
+        
     base_name, _ = os.path.splitext(filename)
     output_midi_name = f"{base_name}_bandurria.mid"
     output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_midi_name)
     
+    # Crear registro del trabajo en segundo plano
+    JOBS[job_id] = {
+        'status': 'processing',
+        'progress': 10,
+        'logs': ['Petición recibida. Iniciando tarea en segundo plano...'],
+        'filename': output_midi_name,
+        'download_url': f'/download/{output_midi_name}',
+        'error': None
+    }
+    
+    # Ejecutar transcripción en un hilo secundario independiente de la conexión HTTP
+    thread = threading.Thread(
+        target=run_background_transcription,
+        args=(job_id, input_path, output_path, bpm, subdivision),
+        daemon=True
+    )
+    thread.start()
+    
+    return jsonify({
+        'success': True,
+        'job_id': job_id
+    })
+
+def run_background_transcription(job_id, input_path, output_path, bpm, subdivision):
+    job = JOBS.get(job_id)
+    if not job:
+        return
+        
+    def log_callback(msg):
+        job['logs'].append(msg)
+        if "Audio cargado" in msg:
+            job['progress'] = 35
+        elif "Segmentando" in msg:
+            job['progress'] = 55
+        elif "Unificando" in msg:
+            job['progress'] = 75
+        elif "Cuantizando" in msg:
+            job['progress'] = 90
+        elif "Éxito" in msg:
+            job['progress'] = 100
+
     try:
         transcribe_audio_to_midi(
             audio_path=input_path,
             midi_path=output_path,
             bpm=bpm,
-            subdivision=subdivision
+            subdivision=subdivision,
+            log_callback=log_callback
         )
-        return jsonify({
-            'success': True,
-            'filename': output_midi_name,
-            'download_url': f'/download/{output_midi_name}'
-        })
+        job['status'] = 'completed'
+        job['progress'] = 100
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        job['status'] = 'failed'
+        job['error'] = str(e)
+        job['logs'].append(f"Error crítico: {str(e)}")
+
+@app.route('/api/status/<job_id>')
+def api_job_status(job_id):
+    job = JOBS.get(job_id)
+    if not job:
+        return jsonify({'success': False, 'error': 'Trabajo no encontrado'}), 404
+        
+    return jsonify({
+        'success': True,
+        'status': job['status'],
+        'progress': job['progress'],
+        'logs': job['logs'],
+        'filename': job['filename'],
+        'download_url': job['download_url'],
+        'error': job['error']
+    })
 
 @app.route('/download/<filename>')
 def download_file(filename):
