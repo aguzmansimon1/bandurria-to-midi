@@ -4,9 +4,30 @@ import threading
 import subprocess
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import json
 from PIL import Image, ImageTk
 from transcribe_melody import transcribe_audio_to_midi
 from convert_tab_to_midi import create_midi_from_tab
+
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def save_config(data):
+    try:
+        current = load_config()
+        current.update(data)
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(current, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
 class BandurriaTranscriberGUI:
     def __init__(self, root):
@@ -117,14 +138,26 @@ class BandurriaTranscriberGUI:
         
         self.tab_audio.columnconfigure(0, weight=1)
 
-        # Cargar ruta por defecto (Noche madrileña bandurria2.mp4)
-        default_in = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria2.mp4"
-        if not os.path.exists(default_in):
-            default_in = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria.mp4"
+        # Cargar última ruta guardada en config.json (o por defecto si no existe)
+        cfg = load_config()
+        last_in = cfg.get("last_input_path")
+        last_out = cfg.get("last_output_path")
+        
+        if last_in and os.path.exists(last_in):
+            default_in = last_in
+        else:
+            default_in = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Las palmeras\26-07-2026 12.14(2).m4a"
+            if not os.path.exists(default_in):
+                default_in = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria2.mp4"
+                
         self.entry_input.insert(0, default_in)
         
-        base, _ = os.path.splitext(default_in)
-        default_out = base + ".mid"
+        if last_out:
+            default_out = last_out
+        else:
+            base, _ = os.path.splitext(default_in)
+            default_out = base + ".mid"
+            
         self.entry_output.insert(0, default_out)
 
         # Tab 2: Convertidor de Tablatura Directa
@@ -228,6 +261,8 @@ class BandurriaTranscriberGUI:
             out_path = base + ".mid"
             self.entry_output.delete(0, tk.END)
             self.entry_output.insert(0, out_path)
+            self.last_midi_output = out_path
+            save_config({"last_input_path": filename, "last_output_path": out_path})
 
     def browse_output(self):
         filename = filedialog.asksaveasfilename(
@@ -238,6 +273,8 @@ class BandurriaTranscriberGUI:
         if filename:
             self.entry_output.delete(0, tk.END)
             self.entry_output.insert(0, filename)
+            self.last_midi_output = filename
+            save_config({"last_output_path": filename})
 
     def toggle_bpm_state(self):
         if self.var_auto_bpm.get():
@@ -291,6 +328,8 @@ class BandurriaTranscriberGUI:
             messagebox.showerror("Error de Salida", "Por favor especifica una ruta válida para el archivo MIDI de salida.")
             return
             
+        save_config({"last_input_path": audio_path, "last_output_path": midi_path})
+
         if self.var_auto_bpm.get():
             bpm = "auto"
         else:
@@ -348,6 +387,10 @@ class BandurriaTranscriberGUI:
             self.root.after(0, lambda: self.btn_convert.config(state="normal"))
 
     def on_transcription_success(self, midi_path):
+        save_config({
+            "last_input_path": self.entry_input.get().strip(),
+            "last_output_path": midi_path
+        })
         messagebox.showinfo("¡Transcripción Completada!", f"¡Archivo MIDI generado con éxito!\n\nRuta: {midi_path}\n\nPuedes hacer clic en 'Abrir en MuseScore' para ver tu partitura.")
 
     def open_output_folder(self):
