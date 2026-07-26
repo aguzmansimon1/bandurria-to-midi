@@ -44,16 +44,17 @@ class BandurriaTranscriberGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Transcriptor de Melodías de Bandurria a MIDI (MuseScore)")
-        self.root.geometry("740x680")
+        self.root.geometry("750x700")
         self.root.minsize(680, 600)
         
-        # Paleta de colores Dark Premium (Acorde a la interfaz web)
-        self.BG_COLOR = "#0f172a"        # Slate 900
-        self.CARD_BG = "#1e293b"         # Slate 800
-        self.TEXT_MAIN = "#f8fafc"       # Slate 50
-        self.TEXT_MUTED = "#94a3b8"      # Slate 400
-        self.ACCENT_PURPLE = "#818cf8"  # Indigo 400
-        self.SUCCESS_GREEN = "#34d399"   # Emerald 400
+        # Paleta de colores Light Warm & Cheerful Premium
+        self.BG_COLOR = "#f8fafc"        # Slate 50 (Fondo claro, limpio y luminoso)
+        self.CARD_BG = "#ffffff"         # Blanco Puro para tarjetas
+        self.TEXT_MAIN = "#0f172a"       # Slate 900 para máxima legibilidad
+        self.TEXT_MUTED = "#64748b"      # Slate 500 para texto secundario
+        self.ACCENT_PRIMARY = "#4f46e5" # Indigo 600 elegante
+        self.ACCENT_WARM = "#d97706"    # Amber 600 cálido
+        self.BORDER_COLOR = "#e2e8f0"   # Slate 200
         
         self.root.configure(bg=self.BG_COLOR)
         
@@ -67,22 +68,22 @@ class BandurriaTranscriberGUI:
         self.style.configure("TLabel", background=self.BG_COLOR, foreground=self.TEXT_MAIN)
         self.style.configure("Card.TLabel", background=self.CARD_BG, foreground=self.TEXT_MAIN)
         self.style.configure("Muted.TLabel", background=self.CARD_BG, foreground=self.TEXT_MUTED, font=("Segoe UI", 9))
-        self.style.configure("Header.TLabel", font=("Segoe UI", 15, "bold"), foreground="#a5b4fc", background=self.BG_COLOR)
+        self.style.configure("Header.TLabel", font=("Segoe UI", 16, "bold"), foreground=self.ACCENT_PRIMARY, background=self.BG_COLOR)
         
         # Estilo para Pestañas (Notebook)
         self.style.configure("TNotebook", background=self.BG_COLOR, borderwidth=0)
-        self.style.configure("TNotebook.Tab", background="#1e293b", foreground=self.TEXT_MUTED, padding=[16, 8], font=("Segoe UI", 10, "bold"))
-        self.style.map("TNotebook.Tab", background=[("selected", self.ACCENT_PURPLE)], foreground=[("selected", "#ffffff")])
+        self.style.configure("TNotebook.Tab", background="#e2e8f0", foreground=self.TEXT_MUTED, padding=[16, 8], font=("Segoe UI", 10, "bold"))
+        self.style.map("TNotebook.Tab", background=[("selected", self.CARD_BG)], foreground=[("selected", self.ACCENT_PRIMARY)])
         
         # Estilo de botones y controles
-        self.style.configure("Primary.TButton", font=("Segoe UI", 11, "bold"), background="#6366f1", foreground="#ffffff")
-        self.style.map("Primary.TButton", background=[("active", "#4f46e5")])
-        self.style.configure("Secondary.TButton", font=("Segoe UI", 9, "bold"), background="#334155", foreground="#ffffff")
-        self.style.map("Secondary.TButton", background=[("active", "#475569")])
+        self.style.configure("Primary.TButton", font=("Segoe UI", 11, "bold"), background=self.ACCENT_PRIMARY, foreground="#ffffff")
+        self.style.map("Primary.TButton", background=[("active", "#4338ca")])
+        self.style.configure("Secondary.TButton", font=("Segoe UI", 9, "bold"), background="#e2e8f0", foreground="#1e293b")
+        self.style.map("Secondary.TButton", background=[("active", "#cbd5e1")])
         
-        self.style.configure("TCombobox", fieldbackground="#0f172a", background="#1e293b", foreground="#ffffff", arrowcolor="#ffffff", selectbackground="#818cf8")
-        self.style.map("TCombobox", fieldbackground=[("readonly", "#0f172a")], foreground=[("readonly", "#ffffff")])
-        self.style.configure("TCheckbutton", background=self.CARD_BG, foreground=self.TEXT_MAIN, font=("Segoe UI", 9))
+        self.style.configure("TCombobox", fieldbackground="#ffffff", background="#e2e8f0", foreground=self.TEXT_MAIN, arrowcolor=self.TEXT_MAIN, selectbackground=self.ACCENT_PRIMARY, selectforeground="#ffffff")
+        self.style.map("TCombobox", fieldbackground=[("readonly", "#ffffff")], foreground=[("readonly", self.TEXT_MAIN)])
+        self.style.configure("TCheckbutton", background=self.CARD_BG, foreground=self.TEXT_MAIN, font=("Segoe UI", 9.5))
         self.style.map("TCheckbutton", background=[("active", self.CARD_BG)])
 
         # Establecer icono oficial de la ventana
@@ -101,7 +102,7 @@ class BandurriaTranscriberGUI:
         if os.path.exists(logo_path):
             try:
                 img = Image.open(logo_path)
-                img = img.resize((56, 56), Image.Resampling.LANCZOS)
+                img = img.resize((60, 60), Image.Resampling.LANCZOS)
                 self.logo_img = ImageTk.PhotoImage(img)
                 lbl_logo = ttk.Label(header_frame, image=self.logo_img)
                 lbl_logo.pack(side="left", padx=(0, 14))
@@ -112,9 +113,9 @@ class BandurriaTranscriberGUI:
         text_frame = ttk.Frame(header_frame)
         text_frame.pack(side="left", fill="both", expand=True)
 
-        lbl_title = ttk.Label(text_frame, text="Transcriptor de Bandurria a MIDI (Piano)", style="Header.TLabel")
+        lbl_title = ttk.Label(text_frame, text="🪕 Transcriptor de Bandurria a MIDI", style="Header.TLabel")
         lbl_title.pack(anchor="w")
-        lbl_subtitle = ttk.Label(text_frame, text="Genera partituras limpias en sonido Piano Acústico desde tu audio/vídeo o pegando tu tablatura.")
+        lbl_subtitle = ttk.Label(text_frame, text="Convierte fácilmente tu audio, vídeo o tablatura a partitura limpia en sonido Piano para MuseScore.")
         lbl_subtitle.pack(anchor="w", pady=(2, 0))
 
         # Main Container
@@ -129,10 +130,10 @@ class BandurriaTranscriberGUI:
         self.tab_audio = ttk.Frame(self.notebook, style="Card.TFrame", padding=15)
         self.notebook.add(self.tab_audio, text=" 🎙️ Desde Audio / Vídeo ")
 
-        lbl_input = ttk.Label(self.tab_audio, text="Archivo de Audio o Vídeo (.mp4, .mp3, .wav):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
+        lbl_input = ttk.Label(self.tab_audio, text="Archivo de Audio o Vídeo (.mp4, .mp3, .wav, .m4a):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
         lbl_input.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
         
-        self.entry_input = tk.Entry(self.tab_audio, font=("Segoe UI", 10), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
+        self.entry_input = tk.Entry(self.tab_audio, font=("Segoe UI", 10), bg="#ffffff", fg="#0f172a", insertbackground="#0f172a", relief="flat", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5")
         self.entry_input.grid(row=1, column=0, sticky="ew", padx=(0, 8), ipady=4)
         
         btn_browse_in = ttk.Button(self.tab_audio, text="Examinar...", style="Secondary.TButton", command=self.browse_input)
@@ -141,7 +142,7 @@ class BandurriaTranscriberGUI:
         lbl_output = ttk.Label(self.tab_audio, text="Archivo MIDI de Salida (.mid):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
         lbl_output.grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 4))
         
-        self.entry_output = tk.Entry(self.tab_audio, font=("Segoe UI", 10), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
+        self.entry_output = tk.Entry(self.tab_audio, font=("Segoe UI", 10), bg="#ffffff", fg="#0f172a", insertbackground="#0f172a", relief="flat", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5")
         self.entry_output.grid(row=3, column=0, sticky="ew", padx=(0, 8), ipady=4)
         
         btn_browse_out = ttk.Button(self.tab_audio, text="Guardar en...", style="Secondary.TButton", command=self.browse_output)
@@ -178,7 +179,7 @@ class BandurriaTranscriberGUI:
         lbl_tab_text = ttk.Label(self.tab_text, text="Pega la secuencia de tablatura (ej: 17-14-15-17-15-14-12-10-12-15-14-22...):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
         lbl_tab_text.pack(anchor="w", pady=(0, 4))
 
-        self.txt_tab_input = tk.Text(self.tab_text, height=5, bg="#0f172a", fg="#ffffff", font=("Consolas", 10), relief="flat", insertbackground="#ffffff")
+        self.txt_tab_input = tk.Text(self.tab_text, height=5, bg="#ffffff", fg="#0f172a", font=("Consolas", 10), relief="flat", insertbackground="#0f172a", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5")
         self.txt_tab_input.pack(fill="x", pady=(0, 6))
 
         default_tab_text = """17-14-15-17-15-14-12-10-12-15-14-22
@@ -206,7 +207,7 @@ class BandurriaTranscriberGUI:
         lbl_bpm = ttk.Label(card_opts, text="Tempo Manual (BPM):", style="Card.TLabel")
         lbl_bpm.grid(row=2, column=0, sticky="w", padx=(0, 8))
         
-        self.spin_bpm = tk.Spinbox(card_opts, from_=40, to=240, width=8, font=("Segoe UI", 10), bg="#0f172a", fg="#64748b", insertbackground="#ffffff", buttonbackground="#1e293b", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8", state="disabled")
+        self.spin_bpm = tk.Spinbox(card_opts, from_=40, to=240, width=8, font=("Segoe UI", 10), bg="#f1f5f9", fg="#94a3b8", insertbackground="#0f172a", buttonbackground="#e2e8f0", relief="flat", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5", state="disabled")
         self.spin_bpm.delete(0, tk.END)
         self.spin_bpm.insert(0, "120")
         self.spin_bpm.grid(row=2, column=1, sticky="w", padx=(0, 24))
@@ -227,7 +228,7 @@ class BandurriaTranscriberGUI:
         log_frame = ttk.Frame(main_container)
         log_frame.pack(fill="both", expand=True, pady=(0, 12))
         
-        self.txt_log = tk.Text(log_frame, height=8, bg="#0f172a", fg="#cbd5e1", font=("Consolas", 9), relief="flat", wrap="word", insertbackground="#ffffff")
+        self.txt_log = tk.Text(log_frame, height=7, bg="#1e293b", fg="#f8fafc", font=("Consolas", 9.5), relief="flat", wrap="word", insertbackground="#ffffff")
         self.txt_log.pack(side="left", fill="both", expand=True)
         
         scrollbar = ttk.Scrollbar(log_frame, command=self.txt_log.yview)
