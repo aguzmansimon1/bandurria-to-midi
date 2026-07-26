@@ -70,10 +70,14 @@ class BandurriaTranscriberGUI:
         self.style.configure("Muted.TLabel", background=self.CARD_BG, foreground=self.TEXT_MUTED, font=("Segoe UI", 9))
         self.style.configure("Header.TLabel", font=("Segoe UI", 16, "bold"), foreground=self.ACCENT_PRIMARY, background=self.BG_COLOR)
         
-        # Estilo para Pestañas (Notebook)
-        self.style.configure("TNotebook", background=self.BG_COLOR, borderwidth=0)
-        self.style.configure("TNotebook.Tab", background="#e2e8f0", foreground=self.TEXT_MUTED, padding=[16, 8], font=("Segoe UI", 10, "bold"))
-        self.style.map("TNotebook.Tab", background=[("selected", self.CARD_BG)], foreground=[("selected", self.ACCENT_PRIMARY)])
+        # Estilo para Pestañas (Notebook) con tamaño uniforme
+        self.style.configure("TNotebook", background=self.BG_COLOR, borderwidth=0, tabmargins=[0, 0, 0, 0])
+        self.style.configure("TNotebook.Tab", background="#e2e8f0", foreground=self.TEXT_MUTED, padding=[16, 8], font=("Segoe UI", 10, "bold"), borderwidth=1, lightcolor="#e2e8f0", bordercolor="#cbd5e1")
+        self.style.map("TNotebook.Tab", 
+                       background=[("selected", self.CARD_BG), ("active", "#e2e8f0")], 
+                       foreground=[("selected", self.ACCENT_PRIMARY), ("active", self.TEXT_MAIN)],
+                       expand=[("selected", [0, 0, 0, 0])],
+                       padding=[("selected", [16, 8])])
         
         # Estilo de botones y controles
         self.style.configure("Primary.TButton", font=("Segoe UI", 11, "bold"), background=self.ACCENT_PRIMARY, foreground="#ffffff")
