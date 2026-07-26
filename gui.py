@@ -52,6 +52,14 @@ class BandurriaTranscriberGUI:
         self.style.configure("TCheckbutton", background=self.CARD_BG, foreground=self.TEXT_MAIN, font=("Segoe UI", 9))
         self.style.map("TCheckbutton", background=[("active", self.CARD_BG)])
 
+        # Establecer icono oficial de la ventana
+        ico_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.ico")
+        if os.path.exists(ico_path):
+            try:
+                self.root.iconbitmap(ico_path)
+            except Exception:
+                pass
+
         # Header Title con Logo
         header_frame = ttk.Frame(root, padding=(20, 15, 20, 10))
         header_frame.pack(fill="x")
@@ -64,6 +72,7 @@ class BandurriaTranscriberGUI:
                 self.logo_img = ImageTk.PhotoImage(img)
                 lbl_logo = ttk.Label(header_frame, image=self.logo_img)
                 lbl_logo.pack(side="left", padx=(0, 14))
+                self.root.iconphoto(True, self.logo_img)
             except Exception:
                 pass
                 
