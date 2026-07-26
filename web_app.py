@@ -32,8 +32,8 @@ HTML_TEMPLATE = """
     <style>
         :root {
             --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-            --card-bg: rgba(30, 41, 59, 0.7);
-            --card-border: rgba(255, 255, 255, 0.1);
+            --card-bg: rgba(30, 41, 59, 0.75);
+            --card-border: rgba(255, 255, 255, 0.12);
             --accent-purple: #818cf8;
             --accent-pink: #c084fc;
             --accent-glow: rgba(129, 140, 248, 0.35);
@@ -61,7 +61,7 @@ HTML_TEMPLATE = """
 
         .container {
             width: 100%;
-            max-width: 720px;
+            max-width: 760px;
             background: var(--card-bg);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
@@ -91,6 +91,35 @@ HTML_TEMPLATE = """
             line-height: 1.5;
         }
 
+        /* Tabs Selection */
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+            background: rgba(15, 23, 42, 0.5);
+            padding: 5px;
+            border-radius: 14px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.9rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn.active {
+            background: var(--accent-purple);
+            color: white;
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }
+
         /* Dropzone */
         .dropzone {
             border: 2px dashed rgba(129, 140, 248, 0.4);
@@ -101,20 +130,17 @@ HTML_TEMPLATE = """
             cursor: pointer;
             transition: all 0.3s ease;
             position: relative;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
         }
 
-        .dropzone:hover, .dropzone.dragover {
+        .dropzone:hover, .dropzone.dragover, .dropzone.has-file {
             border-color: var(--accent-purple);
-            background: rgba(129, 140, 248, 0.08);
+            background: rgba(129, 140, 248, 0.1);
             box-shadow: 0 0 20px var(--accent-glow);
         }
 
         .dropzone input[type="file"] {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            opacity: 0;
-            cursor: pointer;
+            display: none;
         }
 
         .dropzone-icon {
@@ -123,11 +149,52 @@ HTML_TEMPLATE = """
             display: block;
         }
 
-        .file-info {
+        .btn-browse {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 18px;
+            background: rgba(129, 140, 248, 0.2);
+            border: 1px solid var(--accent-purple);
+            color: var(--text-main);
+            border-radius: 10px;
             font-weight: 600;
-            color: var(--accent-purple);
+            font-size: 0.88rem;
+            pointer-events: none;
+        }
+
+        .file-info-badge {
+            display: none;
+            background: rgba(52, 211, 153, 0.15);
+            border: 1px solid rgba(52, 211, 153, 0.4);
+            color: var(--success);
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-top: 10px;
             word-break: break-all;
-            margin-top: 8px;
+        }
+
+        /* Local Path Input Box */
+        .local-path-box {
+            display: none;
+            margin-bottom: 20px;
+        }
+
+        .local-path-box input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 12px 14px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .local-path-box input:focus {
+            border-color: var(--accent-purple);
         }
 
         /* Form Grid */
@@ -290,16 +357,30 @@ HTML_TEMPLATE = """
         <p>Convierte el audio o vídeo de tu bandurria en un archivo MIDI listo para exportar a partitura en <strong>MuseScore</strong>.</p>
     </div>
 
+    <!-- Mode Selector -->
+    <div class="tab-buttons">
+        <button type="button" class="tab-btn active" id="tabUploadBtn" onclick="setMode('upload')">📁 Seleccionar / Arrastrar Archivo</button>
+        <button type="button" class="tab-btn" id="tabPathBtn" onclick="setMode('path')">💻 Ruta Local en Disco</button>
+    </div>
+
     <form id="transcribeForm">
-        <!-- File Dropzone -->
-        <div class="dropzone" id="dropzone">
-            <input type="file" id="audioFile" accept="audio/*,video/*" required>
+        <input type="file" id="audioFile" accept="audio/*,video/*">
+
+        <!-- Mode 1: Drag & Drop Dropzone -->
+        <div class="dropzone" id="dropzone" onclick="document.getElementById('audioFile').click()">
             <span class="dropzone-icon">🎼</span>
             <div id="dropzoneText">
-                <strong>Arrastra tu archivo de audio/vídeo aquí</strong>
-                <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">o haz clic para examinar (MP4, MP3, WAV, etc.)</div>
+                <strong>Arrastra tu archivo de audio/vídeo de bandurria aquí</strong>
+                <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">formatos compatibles: MP4, MP3, WAV, M4A, AVI</div>
+                <div class="btn-browse">Examinar Archivo...</div>
             </div>
-            <div class="file-info" id="fileInfo"></div>
+            <div class="file-info-badge" id="fileInfoBadge"></div>
+        </div>
+
+        <!-- Mode 2: Local Path Input -->
+        <div class="local-path-box" id="localPathBox">
+            <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Escribe o pega la ruta del archivo en tu PC:</label>
+            <input type="text" id="localPathInput" placeholder="Ej: G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria.mp4">
         </div>
 
         <!-- Form Options -->
@@ -336,7 +417,7 @@ HTML_TEMPLATE = """
     <!-- Result Box -->
     <div class="result-card" id="resultCard">
         <h3>¡Transcripción Completada!</h3>
-        <p style="font-size: 0.9rem; color: #cbd5e1;">Tu archivo MIDI de bandurria ha sido generado con la función de trémolo sostenido y ritmo cuantizado.</p>
+        <p style="font-size: 0.9rem; color: #cbd5e1; margin-top: 4px;">Tu archivo MIDI de bandurria ha sido generado con trémolos unificados y ritmo cuantizado.</p>
         <a href="#" class="btn-download" id="downloadBtn" download>
             <span>📥 Descargar Archivo MIDI</span>
         </a>
@@ -344,10 +425,13 @@ HTML_TEMPLATE = """
 </div>
 
 <script>
+    let currentMode = 'upload';
     const fileInput = document.getElementById('audioFile');
     const dropzone = document.getElementById('dropzone');
     const dropzoneText = document.getElementById('dropzoneText');
-    const fileInfo = document.getElementById('fileInfo');
+    const fileInfoBadge = document.getElementById('fileInfoBadge');
+    const localPathBox = document.getElementById('localPathBox');
+    const localPathInput = document.getElementById('localPathInput');
     const form = document.getElementById('transcribeForm');
     const btnSubmit = document.getElementById('btnSubmit');
     const btnSpinner = document.getElementById('btnSpinner');
@@ -358,10 +442,29 @@ HTML_TEMPLATE = """
     const resultCard = document.getElementById('resultCard');
     const downloadBtn = document.getElementById('downloadBtn');
 
-    // Drag & Drop
+    function setMode(mode) {
+        currentMode = mode;
+        if (mode === 'upload') {
+            document.getElementById('tabUploadBtn').classList.add('active');
+            document.getElementById('tabPathBtn').classList.remove('active');
+            dropzone.style.display = 'block';
+            localPathBox.style.display = 'none';
+        } else {
+            document.getElementById('tabPathBtn').classList.add('active');
+            document.getElementById('tabUploadBtn').classList.remove('active');
+            dropzone.style.display = 'none';
+            localPathBox.style.display = 'block';
+            if (!localPathInput.value) {
+                localPathInput.value = `G:\\Mi unidad\\AYo\\Tuna\\Canciones Tuna\\Noche madrileña\\Noche madrileña bandurria.mp4`;
+            }
+        }
+    }
+
+    // Drag & Drop Handling
     ['dragenter', 'dragover'].forEach(name => {
         dropzone.addEventListener(name, (e) => {
             e.preventDefault();
+            e.stopPropagation();
             dropzone.classList.add('dragover');
         });
     });
@@ -369,13 +472,20 @@ HTML_TEMPLATE = """
     ['dragleave', 'drop'].forEach(name => {
         dropzone.addEventListener(name, (e) => {
             e.preventDefault();
+            e.stopPropagation();
             dropzone.classList.remove('dragover');
         });
     });
 
     dropzone.addEventListener('drop', (e) => {
-        if (e.dataTransfer.files.length) {
-            fileInput.files = e.dataTransfer.files;
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            try {
+                const dt = new DataTransfer();
+                dt.items.add(e.dataTransfer.files[0]);
+                fileInput.files = dt.files;
+            } catch(err) {
+                fileInput.files = e.dataTransfer.files;
+            }
             updateFileInfo();
         }
     });
@@ -383,21 +493,37 @@ HTML_TEMPLATE = """
     fileInput.addEventListener('change', updateFileInfo);
 
     function updateFileInfo() {
-        if (fileInput.files.length) {
+        if (fileInput.files && fileInput.files.length > 0) {
             const file = fileInput.files[0];
-            fileInfo.textContent = `📄 Seleccionado: ${file.name} (${(file.size / (1024*1024)).toFixed(2)} MB)`;
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            fileInfoBadge.innerHTML = `✅ Archivo Seleccionado:<br><strong>${file.name}</strong> (${sizeMB} MB)`;
+            fileInfoBadge.style.display = 'block';
             dropzoneText.style.display = 'none';
+            dropzone.classList.add('has-file');
         }
     }
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!fileInput.files.length) return;
 
         const formData = new FormData();
-        formData.append('audio', fileInput.files[0]);
         formData.append('bpm', document.getElementById('bpm').value);
         formData.append('subdivision', document.getElementById('subdivision').value);
+
+        if (currentMode === 'upload') {
+            if (!fileInput.files || !fileInput.files.length) {
+                alert('Por favor selecciona o arrastra un archivo de audio/vídeo de bandurria.');
+                return;
+            }
+            formData.append('audio', fileInput.files[0]);
+        } else {
+            const pathVal = localPathInput.value.trim();
+            if (!pathVal) {
+                alert('Por favor escribe la ruta local de tu archivo.');
+                return;
+            }
+            formData.append('local_path', pathVal);
+        }
 
         // UI Reset
         btnSubmit.disabled = true;
@@ -406,26 +532,26 @@ HTML_TEMPLATE = """
         statusCard.style.display = 'block';
         resultCard.style.display = 'none';
         progressFill.style.width = '20%';
-        logBox.textContent = 'Subiendo archivo multimedia...\n';
+        logBox.textContent = 'Iniciando transcripción de la bandurria...\n';
 
         try {
             progressFill.style.width = '40%';
-            logBox.textContent += 'Ejecutando algoritmo de detección de pitch pYIN para Bandurria...\n';
-            
+            logBox.textContent += 'Cargando audio y ejecutando detección de pitch pYIN...\n';
+
             const response = await fetch('/api/transcribe', {
                 method: 'POST',
                 body: formData
             });
 
-            progressFill.style.width = '75%';
-            logBox.textContent += 'Unificando repeticiones de trémolo y cuantizando ritmo...\n';
+            progressFill.style.width = '80%';
+            logBox.textContent += 'Unificando notas de trémolo y aplicando cuantización para MuseScore...\n';
 
             const data = await response.json();
 
             if (data.success) {
                 progressFill.style.width = '100%';
-                logBox.textContent += '¡Transcripción completada con éxito!\n';
-                
+                logBox.textContent += '¡Éxito! Transcripción de Bandurria completada.\n';
+
                 downloadBtn.href = data.download_url;
                 downloadBtn.setAttribute('download', data.filename);
                 resultCard.style.display = 'block';
@@ -434,8 +560,8 @@ HTML_TEMPLATE = """
                 logBox.textContent += `❌ Error: ${data.error}\n`;
             }
         } catch (err) {
-            alert('Error de conexión con el servidor: ' + err.message);
-            logBox.textContent += `❌ Error de red: ${err.message}\n`;
+            alert('Error de procesamiento: ' + err.message);
+            logBox.textContent += `❌ Error: ${err.message}\n`;
         } finally {
             btnSubmit.disabled = false;
             btnSpinner.style.display = 'none';
@@ -454,19 +580,28 @@ def index():
 
 @app.route('/api/transcribe', methods=['POST'])
 def api_transcribe():
-    if 'audio' not in request.files:
-        return jsonify({'success': False, 'error': 'No se adjuntó archivo de audio'}), 400
-        
-    file = request.files['audio']
-    if file.filename == '':
-        return jsonify({'success': False, 'error': 'Archivo de audio no seleccionado'}), 400
-        
     bpm = int(request.form.get('bpm', 120))
     subdivision = int(request.form.get('subdivision', 16))
     
-    filename = secure_filename(file.filename)
-    input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(input_path)
+    local_path = request.form.get('local_path', '').strip()
+    
+    if local_path:
+        if not os.path.exists(local_path):
+            return jsonify({'success': False, 'error': f"El archivo local '{local_path}' no existe en el disco"}), 400
+        input_path = local_path
+        filename = os.path.basename(local_path)
+    else:
+        if 'audio' not in request.files or request.files['audio'].filename == '':
+            return jsonify({'success': False, 'error': 'No se adjuntó o seleccionó ningún archivo de audio'}), 400
+            
+        file = request.files['audio']
+        filename = file.filename
+        safe_name = f"upload_{int(time.time())}_{secure_filename(filename)}"
+        if not safe_name.endswith(os.path.splitext(filename)[1]):
+            safe_name += os.path.splitext(filename)[1]
+            
+        input_path = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
+        file.save(input_path)
     
     base_name, _ = os.path.splitext(filename)
     output_midi_name = f"{base_name}_bandurria.mid"
