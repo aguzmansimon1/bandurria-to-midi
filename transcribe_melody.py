@@ -138,12 +138,22 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     log("Cargando y decodificando audio...")
     y, sr = load_audio_av(audio_path)
     duracion = len(y) / sr
-    log(f"Audio cargado. Duración: {duracion:.2f} segundos. Detectando afinación exacta para Bandurria...")
+    log(f"Audio cargado. Duración: {duracion:.2f} segundos.")
     
-    # Detección de pitch pYIN acotada al registro real de la Bandurria (300 Hz a 1100 Hz)
+    # 1. Separación Armónico-Percusiva (HPSS) para aislar las notas de la bandurria
+    log("Aislando melodía armónica de la bandurria con filtrado HPSS...")
+    y_harmonic, y_percussive = librosa.effects.hpss(y)
+    
+    # 2. Detección de ataques de púa (Note Onsets)
     hop_length = 512
+    log("Detectando pulsos y ataques físicos de púa (Onset Detection)...")
+    onset_frames = librosa.onset.onset_detect(y=y_harmonic, sr=sr, hop_length=hop_length, backtrack=True)
+    onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length)
+    
+    # 3. Detección de pitch pYIN acotada al registro real de la Bandurria (300 Hz a 1100 Hz)
+    log("Calculando afinación de notas (300 Hz a 1100 Hz)...")
     f0, voiced_flag, voiced_probs = librosa.pyin(
-        y, 
+        y_harmonic, 
         fmin=fmin, 
         fmax=fmax, 
         sr=sr,
@@ -151,52 +161,35 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
         fill_na=0.0
     )
     
-    # Aplicar filtrado medfilt para eliminar saltos de armónicos
+    # Filtrado medfilt para eliminar armónicos espurios
     import scipy.signal
     f0 = scipy.signal.medfilt(f0, kernel_size=5)
     
-    times = librosa.frames_to_time(range(len(f0)), sr=sr, hop_length=hop_length)
-    frame_duration = hop_length / sr
-    
-    log("Segmentando notas iniciales de la melodía...")
+    log("Segmentando notas limpias en cada pulso...")
     notes = []
-    current_note = None
     
-    for i in range(len(f0)):
-        freq = f0[i]
-        t = times[i]
+    # Segmentación por intervalos entre ataques de púa
+    for i in range(len(onset_frames)):
+        start_f = onset_frames[i]
+        end_f = onset_frames[i+1] if i + 1 < len(onset_frames) else len(f0)
         
-        if freq > 0:
-            midi_pitch = librosa.hz_to_midi(freq)
+        start_t = onset_times[i]
+        end_t = librosa.frames_to_time(end_f, sr=sr, hop_length=hop_length) if i + 1 < len(onset_frames) else duracion
+        
+        segment_f0 = f0[start_f:end_f]
+        valid_freqs = [f for f in segment_f0 if f > 0]
+        
+        if len(valid_freqs) > 0 and (end_t - start_t) >= 0.05:
+            med_freq = float(np.median(valid_freqs))
+            midi_pitch = float(librosa.hz_to_midi(med_freq))
             rounded_pitch = int(round(midi_pitch))
             
-            if current_note is None:
-                current_note = {
-                    'pitch': rounded_pitch,
-                    'start': t,
-                    'end': t + frame_duration,
-                    'pitches': [midi_pitch]
-                }
-            else:
-                avg_pitch = np.median(current_note['pitches'])
-                if abs(midi_pitch - avg_pitch) < 1.2:
-                    current_note['end'] = t + frame_duration
-                    current_note['pitches'].append(midi_pitch)
-                else:
-                    notes.append(current_note)
-                    current_note = {
-                        'pitch': rounded_pitch,
-                        'start': t,
-                        'end': t + frame_duration,
-                        'pitches': [midi_pitch]
-                    }
-        else:
-            if current_note is not None:
-                notes.append(current_note)
-                current_note = None
-                
-    if current_note is not None:
-        notes.append(current_note)
+            notes.append({
+                'pitch': rounded_pitch,
+                'start': start_t,
+                'end': end_t,
+                'pitches': [midi_pitch]
+            })
 
     # Filtrar notas ruidosas ultra cortas (<60ms)
     min_note_duration = 0.06
