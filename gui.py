@@ -4,6 +4,7 @@ import threading
 import subprocess
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+from PIL import Image, ImageTk
 from transcribe_melody import transcribe_audio_to_midi
 
 class BandurriaTranscriberGUI:
@@ -51,13 +52,27 @@ class BandurriaTranscriberGUI:
         self.style.configure("TCheckbutton", background=self.CARD_BG, foreground=self.TEXT_MAIN, font=("Segoe UI", 9))
         self.style.map("TCheckbutton", background=[("active", self.CARD_BG)])
 
-        # Header Title
+        # Header Title con Logo
         header_frame = ttk.Frame(root, padding=(20, 15, 20, 10))
         header_frame.pack(fill="x")
         
-        lbl_title = ttk.Label(header_frame, text="🪕 Transcriptor de Bandurria a MIDI", style="Header.TLabel")
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
+        if os.path.exists(logo_path):
+            try:
+                img = Image.open(logo_path)
+                img = img.resize((56, 56), Image.Resampling.LANCZOS)
+                self.logo_img = ImageTk.PhotoImage(img)
+                lbl_logo = ttk.Label(header_frame, image=self.logo_img)
+                lbl_logo.pack(side="left", padx=(0, 14))
+            except Exception:
+                pass
+                
+        text_frame = ttk.Frame(header_frame)
+        text_frame.pack(side="left", fill="both", expand=True)
+
+        lbl_title = ttk.Label(text_frame, text="Transcriptor de Bandurria a MIDI", style="Header.TLabel")
         lbl_title.pack(anchor="w")
-        lbl_subtitle = ttk.Label(header_frame, text="Extrae la melodía de tu bandurria, unifica el trémolo de púa y genera un MIDI cuantizado para MuseScore.")
+        lbl_subtitle = ttk.Label(text_frame, text="Extrae la melodía de tu bandurria, unifica el trémolo de púa y genera un MIDI cuantizado para MuseScore.")
         lbl_subtitle.pack(anchor="w", pady=(2, 0))
 
         # Main Container

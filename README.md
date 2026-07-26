@@ -1,5 +1,9 @@
 # Transcriptor de Melodías de Bandurria a MIDI (MuseScore)
 
+<p align="center">
+  <img src="logo.png" alt="Bandurria to MIDI Logo" width="160">
+</p>
+
 Este proyecto extrae automáticamente la melodía de archivos de audio y vídeo de **bandurria** (u otros instrumentos de púa solistas) y genera un archivo MIDI optimizado para ser importado en programas de notación como **MuseScore**.
 
 ---
