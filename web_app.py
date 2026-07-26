@@ -504,7 +504,11 @@ HTML_TEMPLATE = r"""
             fileInfoBadge.innerHTML = `✅ Archivo Seleccionado:<br><strong>${file.name}</strong> (${sizeMB} MB)`;
             fileInfoBadge.style.display = 'block';
             dropzoneText.style.display = 'none';
-            dropzone.classList.    form.addEventListener('submit', (e) => {
+            dropzone.classList.add('has-file');
+        }
+    }
+
+    form.addEventListener('submit', (e) => {
         e.preventDefault();
 
         const formData = new FormData();
