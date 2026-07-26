@@ -298,6 +298,10 @@ class BandurriaTranscriberGUI:
 def launch_gui():
     root = tk.Tk()
     app = BandurriaTranscriberGUI(root)
+    root.lift()
+    root.attributes('-topmost', True)
+    root.after(100, lambda: root.attributes('-topmost', False))
+    root.focus_force()
     root.mainloop()
 
 if __name__ == "__main__":
