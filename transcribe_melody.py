@@ -121,7 +121,7 @@ def calculate_note_velocities(notes, y, sr):
         
     return notes
 
-def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=300, fmax=1100, log_callback=None):
+def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=170, fmax=1050, log_callback=None):
     def log(msg):
         print(msg)
         if log_callback:
@@ -150,8 +150,8 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     onset_frames = librosa.onset.onset_detect(y=y_harmonic, sr=sr, hop_length=hop_length, backtrack=True)
     onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length)
     
-    # 3. Detección de pitch pYIN acotada al registro real de la Bandurria (300 Hz a 1100 Hz)
-    log("Calculando afinación de notas (300 Hz a 1100 Hz)...")
+    # 3. Detección de pitch pYIN acotada a las 6 cuerdas de la Bandurria (170 Hz a 1050 Hz)
+    log("Calculando afinación de notas (170 Hz a 1050 Hz - 6 Cuerdas)...")
     f0, voiced_flag, voiced_probs = librosa.pyin(
         y_harmonic, 
         fmin=fmin, 

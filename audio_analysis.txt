@@ -1,0 +1,2 @@
+Duración: 71.32s
+RMS Medio: 0.1093
