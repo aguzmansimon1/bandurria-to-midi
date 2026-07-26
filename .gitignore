@@ -1,0 +1,22 @@
+# Entorno virtual
+.venv/
+venv/
+ENV/
+
+# Archivos de caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Archivos multimedia de prueba / salida local
+*.mid
+*.midi
+*.mp4
+*.mp3
+*.wav
+
+# IDEs y SO
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
