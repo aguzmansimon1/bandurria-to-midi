@@ -179,8 +179,15 @@ class BandurriaTranscriberGUI:
         self.btn_convert = ttk.Button(action_frame, text="🎵 CONVERTIR Y TRANSCRIBIR A MIDI", style="Primary.TButton", command=self.start_transcription_thread)
         self.btn_convert.pack(fill="x", ipady=8)
 
-        # Botón secundario para abrir carpeta contenedora al finalizar
-        self.btn_open_folder = ttk.Button(action_frame, text="📂 Abrir Carpeta del Archivo MIDI", style="Secondary.TButton", command=self.open_output_folder)
+        # Frame de botones tras completar la transcripción
+        self.post_frame = ttk.Frame(action_frame)
+        
+        self.btn_open_folder = ttk.Button(self.post_frame, text="📂 Abrir Carpeta", style="Secondary.TButton", command=self.open_output_folder)
+        self.btn_open_folder.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        
+        self.btn_open_musescore = ttk.Button(self.post_frame, text="🎼 Abrir en MuseScore", style="Secondary.TButton", command=self.open_in_musescore)
+        self.btn_open_musescore.pack(side="right", fill="x", expand=True, padx=(6, 0))
+        
         self.last_midi_output = None
 
     def log(self, message):
@@ -261,7 +268,7 @@ class BandurriaTranscriberGUI:
             subdiv = 16
             
         self.btn_convert.config(state="disabled")
-        self.btn_open_folder.pack_forget()
+        self.post_frame.pack_forget()
         self.progress_var.set(10)
         self.txt_log.delete(1.0, tk.END)
         self.log("▶ Iniciando transcripción de Bandurria...")
@@ -302,13 +309,38 @@ class BandurriaTranscriberGUI:
             self.root.after(0, lambda: self.btn_convert.config(state="normal"))
 
     def on_transcription_success(self, midi_path):
-        self.btn_open_folder.pack(fill="x", pady=(8, 0))
-        messagebox.showinfo("¡Transcripción Completada!", f"¡Archivo MIDI generado con éxito!\n\nRuta: {midi_path}\n\nYa puedes abrirlo directamente en MuseScore.")
+        self.post_frame.pack(fill="x", pady=(10, 0))
+        messagebox.showinfo("¡Transcripción Completada!", f"¡Archivo MIDI generado con éxito!\n\nRuta: {midi_path}\n\nPuedes hacer clic en 'Abrir en MuseScore' para ver tu partitura.")
 
     def open_output_folder(self):
         if self.last_midi_output and os.path.exists(os.path.dirname(self.last_midi_output)):
             folder = os.path.dirname(self.last_midi_output)
             subprocess.run(["explorer", folder])
+
+    def open_in_musescore(self):
+        if not self.last_midi_output or not os.path.exists(self.last_midi_output):
+            messagebox.showwarning("Aviso", "No se encontró el archivo MIDI generado.")
+            return
+            
+        midi_path = self.last_midi_output
+        possible_paths = [
+            r"C:\Program Files\MuseScore 4\bin\MuseScore4.exe",
+            r"C:\Program Files\MuseScore 3\bin\MuseScore3.exe",
+            r"C:\Program Files (x86)\MuseScore 3\bin\MuseScore3.exe",
+        ]
+        musescore_exe = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                musescore_exe = path
+                break
+                
+        try:
+            if musescore_exe:
+                subprocess.Popen([musescore_exe, midi_path])
+            else:
+                os.startfile(midi_path)
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo abrir MuseScore automáticamente:\n{str(e)}")
 
 def launch_gui():
     root = tk.Tk()
