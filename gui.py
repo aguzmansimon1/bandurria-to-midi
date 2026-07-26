@@ -130,7 +130,8 @@ class BandurriaTranscriberGUI:
         lbl_bpm.grid(row=2, column=0, sticky="w", padx=(0, 8))
         
         self.spin_bpm = tk.Spinbox(card_opts, from_=40, to=240, width=8, font=("Segoe UI", 10), bg="#0f172a", fg="#64748b", insertbackground="#ffffff", buttonbackground="#1e293b", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8", state="disabled")
-        self.spin_bpm.set(120)
+        self.spin_bpm.delete(0, tk.END)
+        self.spin_bpm.insert(0, "120")
         self.spin_bpm.grid(row=2, column=1, sticky="w", padx=(0, 24))
         
         lbl_subdiv = ttk.Label(card_opts, text="Subdivisión Rítmica:", style="Card.TLabel")
