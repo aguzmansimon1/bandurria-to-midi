@@ -6,13 +6,14 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 from transcribe_melody import transcribe_audio_to_midi
+from convert_tab_to_midi import create_midi_from_tab
 
 class BandurriaTranscriberGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Transcriptor de Melodías de Bandurria a MIDI (MuseScore)")
-        self.root.geometry("720x640")
-        self.root.minsize(650, 580)
+        self.root.geometry("740x680")
+        self.root.minsize(680, 600)
         
         # Paleta de colores Dark Premium (Acorde a la interfaz web)
         self.BG_COLOR = "#0f172a"        # Slate 900
@@ -79,38 +80,42 @@ class BandurriaTranscriberGUI:
         text_frame = ttk.Frame(header_frame)
         text_frame.pack(side="left", fill="both", expand=True)
 
-        lbl_title = ttk.Label(text_frame, text="Transcriptor de Bandurria a MIDI", style="Header.TLabel")
+        lbl_title = ttk.Label(text_frame, text="Transcriptor de Bandurria a MIDI (Piano)", style="Header.TLabel")
         lbl_title.pack(anchor="w")
-        lbl_subtitle = ttk.Label(text_frame, text="Extrae la melodía de tu bandurria, unifica el trémolo de púa y genera un MIDI cuantizado para MuseScore.")
+        lbl_subtitle = ttk.Label(text_frame, text="Genera partituras limpias en sonido Piano Acústico desde tu audio/vídeo o pegando tu tablatura.")
         lbl_subtitle.pack(anchor="w", pady=(2, 0))
 
         # Main Container
         main_container = ttk.Frame(root, padding=(20, 0, 20, 15))
         main_container.pack(fill="both", expand=True)
 
-        # Card 1: Selección de Archivo (Directo o Explorar)
-        card_file = ttk.Frame(main_container, style="Card.TFrame", padding=15)
-        card_file.pack(fill="x", pady=(0, 12))
+        # Tabs (Notebook): Modo 1 (Audio / Vídeo) | Modo 2 (Tablatura Directa)
+        self.notebook = ttk.Notebook(main_container)
+        self.notebook.pack(fill="x", pady=(0, 10))
 
-        lbl_input = ttk.Label(card_file, text="Archivo de Audio o Vídeo (.mp4, .mp3, .wav):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
+        # Tab 1: Transcripción de Audio / Vídeo
+        self.tab_audio = ttk.Frame(self.notebook, style="Card.TFrame", padding=15)
+        self.notebook.add(self.tab_audio, text=" 🎙️ Desde Audio / Vídeo ")
+
+        lbl_input = ttk.Label(self.tab_audio, text="Archivo de Audio o Vídeo (.mp4, .mp3, .wav):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
         lbl_input.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
         
-        self.entry_input = tk.Entry(card_file, font=("Segoe UI", 10), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
+        self.entry_input = tk.Entry(self.tab_audio, font=("Segoe UI", 10), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
         self.entry_input.grid(row=1, column=0, sticky="ew", padx=(0, 8), ipady=4)
         
-        btn_browse_in = ttk.Button(card_file, text="Examinar...", style="Secondary.TButton", command=self.browse_input)
+        btn_browse_in = ttk.Button(self.tab_audio, text="Examinar...", style="Secondary.TButton", command=self.browse_input)
         btn_browse_in.grid(row=1, column=1, sticky="e")
         
-        lbl_output = ttk.Label(card_file, text="Archivo MIDI de Salida (.mid):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
+        lbl_output = ttk.Label(self.tab_audio, text="Archivo MIDI de Salida (.mid):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
         lbl_output.grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 4))
         
-        self.entry_output = tk.Entry(card_file, font=("Segoe UI", 10), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
+        self.entry_output = tk.Entry(self.tab_audio, font=("Segoe UI", 10), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
         self.entry_output.grid(row=3, column=0, sticky="ew", padx=(0, 8), ipady=4)
         
-        btn_browse_out = ttk.Button(card_file, text="Guardar en...", style="Secondary.TButton", command=self.browse_output)
+        btn_browse_out = ttk.Button(self.tab_audio, text="Guardar en...", style="Secondary.TButton", command=self.browse_output)
         btn_browse_out.grid(row=3, column=1, sticky="e")
         
-        card_file.columnconfigure(0, weight=1)
+        self.tab_audio.columnconfigure(0, weight=1)
 
         # Cargar ruta por defecto (Noche madrileña bandurria2.mp4)
         default_in = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria2.mp4"
@@ -121,6 +126,27 @@ class BandurriaTranscriberGUI:
         base, _ = os.path.splitext(default_in)
         default_out = base + ".mid"
         self.entry_output.insert(0, default_out)
+
+        # Tab 2: Convertidor de Tablatura Directa
+        self.tab_text = ttk.Frame(self.notebook, style="Card.TFrame", padding=15)
+        self.notebook.add(self.tab_text, text=" 📝 Desde Tablatura (Texto) ")
+
+        lbl_tab_text = ttk.Label(self.tab_text, text="Pega la secuencia de tablatura (ej: 17-14-15-17-15-14-12-10-12-15-14-22...):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
+        lbl_tab_text.pack(anchor="w", pady=(0, 4))
+
+        self.txt_tab_input = tk.Text(self.tab_text, height=5, bg="#0f172a", fg="#ffffff", font=("Consolas", 10), relief="flat", insertbackground="#ffffff")
+        self.txt_tab_input.pack(fill="x", pady=(0, 6))
+
+        default_tab_text = """17-14-15-17-15-14-12-10-12-15-14-22
+10-21-23-10-12-14-17-14
+20-22-24-10-24-22-20
+20-22-24-10-24-22-20
+22-24-10-12-10
+20-10-24-23-22-21-23-21-20
+10-24-23-24-10-17-14-10-20-17-13
+10-24-23-22-21-21-21-21-23-10-
+21-20-"""
+        self.txt_tab_input.insert(tk.END, default_tab_text.strip())
 
         # Card de Opciones de Cuantización
         card_opts = ttk.Frame(main_container, style="Card.TFrame", padding=15)
@@ -220,6 +246,40 @@ class BandurriaTranscriberGUI:
             self.spin_bpm.config(state="normal", fg="#ffffff")
 
     def start_transcription_thread(self):
+        selected_tab = self.notebook.index(self.notebook.select())
+        
+        if selected_tab == 1:
+            # Modo 2: Convertir desde Tablatura (Texto)
+            tab_text = self.txt_tab_input.get(1.0, tk.END).strip()
+            if not tab_text:
+                messagebox.showerror("Error de Tablatura", "Por favor pega la secuencia de tablatura de la canción.")
+                return
+            
+            midi_path = self.entry_output.get().strip()
+            if not midi_path:
+                midi_path = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche_madrileña_Tablatura_Piano.mid"
+                
+            try:
+                bpm = 120 if self.var_auto_bpm.get() else int(self.spin_bpm.get())
+            except ValueError:
+                bpm = 120
+                
+            self.txt_log.delete(1.0, tk.END)
+            self.log("▶ Generando partitura MIDI en sonido de Piano desde la tablatura...")
+            self.progress_var.set(50)
+            
+            try:
+                create_midi_from_tab(tab_text, midi_path, bpm=bpm)
+                self.progress_var.set(100)
+                self.last_midi_output = midi_path
+                self.log(f"¡Éxito! MIDI desde tablatura guardado en: {midi_path}")
+                self.on_transcription_success(midi_path)
+            except Exception as e:
+                self.log(f"❌ Error al convertir tablatura: {str(e)}")
+                messagebox.showerror("Error", f"No se pudo procesar la tablatura:\n{str(e)}")
+            return
+
+        # Modo 1: Transcripción desde Audio / Vídeo
         audio_path = self.entry_input.get().strip()
         midi_path = self.entry_output.get().strip()
                 
@@ -250,7 +310,7 @@ class BandurriaTranscriberGUI:
         self.btn_convert.config(state="disabled")
         self.progress_var.set(10)
         self.txt_log.delete(1.0, tk.END)
-        self.log("▶ Iniciando transcripción de Bandurria...")
+        self.log("▶ Iniciando transcripción de Bandurria (Sonido Piano)...")
         
         self.last_midi_output = midi_path
         

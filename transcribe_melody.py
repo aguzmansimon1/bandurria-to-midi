@@ -121,7 +121,7 @@ def calculate_note_velocities(notes, y, sr):
         
     return notes
 
-def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=150, fmax=1800, log_callback=None):
+def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=300, fmax=1100, log_callback=None):
     def log(msg):
         print(msg)
         if log_callback:
@@ -138,9 +138,9 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     log("Cargando y decodificando audio...")
     y, sr = load_audio_av(audio_path)
     duracion = len(y) / sr
-    log(f"Audio cargado. Duración: {duracion:.2f} segundos. Detectando afinación para Bandurria...")
+    log(f"Audio cargado. Duración: {duracion:.2f} segundos. Detectando afinación exacta para Bandurria...")
     
-    # Detección de pitch pYIN ajustada a la Bandurria (G3 a A6 approx)
+    # Detección de pitch pYIN acotada al registro real de la Bandurria (300 Hz a 1100 Hz)
     hop_length = 512
     f0, voiced_flag, voiced_probs = librosa.pyin(
         y, 
@@ -151,10 +151,14 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
         fill_na=0.0
     )
     
+    # Aplicar filtrado medfilt para eliminar saltos de armónicos
+    import scipy.signal
+    f0 = scipy.signal.medfilt(f0, kernel_size=5)
+    
     times = librosa.frames_to_time(range(len(f0)), sr=sr, hop_length=hop_length)
     frame_duration = hop_length / sr
     
-    log("Segmentando notas iniciales...")
+    log("Segmentando notas iniciales de la melodía...")
     notes = []
     current_note = None
     
@@ -232,16 +236,12 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     # 3. Dinámicas y Velocity por nota
     final_notes = calculate_note_velocities(final_notes, y, sr)
     
-    log(f"Escribiendo archivo MIDI para Bandurria ({len(final_notes)} notas finalizadas)...")
+    log(f"Escribiendo archivo MIDI en sonido de Piano ({len(final_notes)} notas finalizadas)...")
     
-    # Crear objeto MIDI asignando Mandolina / Bandurria (GM Program 105)
+    # Crear objeto MIDI asignando Acoustic Grand Piano (Program 0) para sonido limpio
     pm = pretty_midi.PrettyMIDI(initial_tempo=bpm if bpm > 0 else 120.0)
-    try:
-        bandurria_program = pretty_midi.instrument_name_to_program('Mandolin')
-    except Exception:
-        bandurria_program = 105 # Fallback a Mandolin en General MIDI
-        
-    bandurria_inst = pretty_midi.Instrument(program=bandurria_program, name="Bandurria")
+    piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
+    piano_inst = pretty_midi.Instrument(program=piano_program, name="Melodia Piano")
     
     for n in final_notes:
         note_obj = pretty_midi.Note(
@@ -250,9 +250,9 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
             start=n['start'],
             end=n['end']
         )
-        bandurria_inst.notes.append(note_obj)
+        piano_inst.notes.append(note_obj)
         
-    pm.instruments.append(bandurria_inst)
+    pm.instruments.append(piano_inst)
     pm.write(midi_path)
     log(f"¡Éxito! MIDI guardado en: {midi_path}")
 
