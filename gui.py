@@ -79,55 +79,38 @@ class BandurriaTranscriberGUI:
         main_container = ttk.Frame(root, padding=(20, 0, 20, 15))
         main_container.pack(fill="both", expand=True)
 
-        # Tabs (Notebook): Modo 1 (Selección por Explorador) / Modo 2 (Ruta Local Directa)
-        self.notebook = ttk.Notebook(main_container)
-        self.notebook.pack(fill="x", pady=(0, 12))
+        # Card 1: Selección de Archivo (Directo o Explorar)
+        card_file = ttk.Frame(main_container, style="Card.TFrame", padding=15)
+        card_file.pack(fill="x", pady=(0, 12))
 
-        # Tab 1: Seleccionar con Explorador de Archivos
-        self.tab_explorer = ttk.Frame(self.notebook, style="Card.TFrame", padding=15)
-        self.notebook.add(self.tab_explorer, text=" 📁 Explorar Archivo ")
-
-        lbl_input = ttk.Label(self.tab_explorer, text="Archivo de Audio o Vídeo (.mp4, .mp3, .wav):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
+        lbl_input = ttk.Label(card_file, text="Archivo de Audio o Vídeo (.mp4, .mp3, .wav):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
         lbl_input.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
         
-        self.entry_input = tk.Entry(self.tab_explorer, font=("Segoe UI", 10), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
+        self.entry_input = tk.Entry(card_file, font=("Segoe UI", 10), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
         self.entry_input.grid(row=1, column=0, sticky="ew", padx=(0, 8), ipady=4)
         
-        btn_browse_in = ttk.Button(self.tab_explorer, text="Examinar...", style="Secondary.TButton", command=self.browse_input)
+        btn_browse_in = ttk.Button(card_file, text="Examinar...", style="Secondary.TButton", command=self.browse_input)
         btn_browse_in.grid(row=1, column=1, sticky="e")
         
-        lbl_output = ttk.Label(self.tab_explorer, text="Archivo MIDI de Salida (.mid):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
+        lbl_output = ttk.Label(card_file, text="Archivo MIDI de Salida (.mid):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
         lbl_output.grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 4))
         
-        self.entry_output = tk.Entry(self.tab_explorer, font=("Segoe UI", 10), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
+        self.entry_output = tk.Entry(card_file, font=("Segoe UI", 10), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
         self.entry_output.grid(row=3, column=0, sticky="ew", padx=(0, 8), ipady=4)
         
-        btn_browse_out = ttk.Button(self.tab_explorer, text="Guardar en...", style="Secondary.TButton", command=self.browse_output)
+        btn_browse_out = ttk.Button(card_file, text="Guardar en...", style="Secondary.TButton", command=self.browse_output)
         btn_browse_out.grid(row=3, column=1, sticky="e")
         
-        self.tab_explorer.columnconfigure(0, weight=1)
+        card_file.columnconfigure(0, weight=1)
 
-        # Tab 2: Ruta Local Directa
-        self.tab_direct = ttk.Frame(self.notebook, style="Card.TFrame", padding=15)
-        self.notebook.add(self.tab_direct, text=" 💻 Ruta Local en Disco ")
-
-        lbl_direct = ttk.Label(self.tab_direct, text="Pega la ruta completa del archivo de tu PC:", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
-        lbl_direct.pack(anchor="w", pady=(0, 4))
+        # Cargar ruta por defecto (Noche madrileña bandurria2.mp4)
+        default_in = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria2.mp4"
+        if not os.path.exists(default_in):
+            default_in = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria.mp4"
+        self.entry_input.insert(0, default_in)
         
-        self.entry_direct_path = tk.Entry(self.tab_direct, font=("Segoe UI", 10), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
-        self.entry_direct_path.pack(fill="x", pady=(0, 8), ipady=4)
-        
-        default_direct = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria2.mp4"
-        self.entry_direct_path.insert(0, default_direct)
-        
-        lbl_direct_help = ttk.Label(self.tab_direct, text="Abre directamente el archivo sin necesidad de seleccionarlo manualmente.", style="Muted.TLabel")
-        lbl_direct_help.pack(anchor="w")
-
-        # Cargar valores por defecto en Tab 1 si existen
-        default_in = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria.mp4"
-        if os.path.exists(default_in):
-            self.entry_input.insert(0, default_in)
-        default_out = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria.mid"
+        base, _ = os.path.splitext(default_in)
+        default_out = base + ".mid"
         self.entry_output.insert(0, default_out)
 
         # Card de Opciones de Cuantización
@@ -227,21 +210,8 @@ class BandurriaTranscriberGUI:
             self.spin_bpm.config(state="normal", fg="#ffffff")
 
     def start_transcription_thread(self):
-        # Determinar pestaña activa
-        selected_tab = self.notebook.index(self.notebook.select())
-        
-        if selected_tab == 0:
-            # Tab Explorador
-            audio_path = self.entry_input.get().strip()
-            midi_path = self.entry_output.get().strip()
-        else:
-            # Tab Ruta Local Directa
-            audio_path = self.entry_direct_path.get().strip()
-            if audio_path:
-                base, _ = os.path.splitext(audio_path)
-                midi_path = base + ".mid"
-            else:
-                midi_path = ""
+        audio_path = self.entry_input.get().strip()
+        midi_path = self.entry_output.get().strip()
                 
         if not audio_path or not os.path.exists(audio_path):
             messagebox.showerror("Error de Archivo", f"El archivo de entrada no existe o no es válido:\n'{audio_path}'")
