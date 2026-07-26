@@ -70,8 +70,8 @@ class BandurriaTranscriberGUI:
         lbl_input = ttk.Label(self.tab_explorer, text="Archivo de Audio o Vídeo (.mp4, .mp3, .wav):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
         lbl_input.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
         
-        self.entry_input = ttk.Entry(self.tab_explorer, font=("Segoe UI", 9))
-        self.entry_input.grid(row=1, column=0, sticky="ew", padx=(0, 8))
+        self.entry_input = tk.Entry(self.tab_explorer, font=("Segoe UI", 9.5), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
+        self.entry_input.grid(row=1, column=0, sticky="ew", padx=(0, 8), ipady=4)
         
         btn_browse_in = ttk.Button(self.tab_explorer, text="Examinar...", style="Secondary.TButton", command=self.browse_input)
         btn_browse_in.grid(row=1, column=1, sticky="e")
@@ -79,8 +79,8 @@ class BandurriaTranscriberGUI:
         lbl_output = ttk.Label(self.tab_explorer, text="Archivo MIDI de Salida (.mid):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
         lbl_output.grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 4))
         
-        self.entry_output = ttk.Entry(self.tab_explorer, font=("Segoe UI", 9))
-        self.entry_output.grid(row=3, column=0, sticky="ew", padx=(0, 8))
+        self.entry_output = tk.Entry(self.tab_explorer, font=("Segoe UI", 9.5), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
+        self.entry_output.grid(row=3, column=0, sticky="ew", padx=(0, 8), ipady=4)
         
         btn_browse_out = ttk.Button(self.tab_explorer, text="Guardar en...", style="Secondary.TButton", command=self.browse_output)
         btn_browse_out.grid(row=3, column=1, sticky="e")
@@ -94,8 +94,8 @@ class BandurriaTranscriberGUI:
         lbl_direct = ttk.Label(self.tab_direct, text="Pega la ruta completa del archivo de tu PC:", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
         lbl_direct.pack(anchor="w", pady=(0, 4))
         
-        self.entry_direct_path = ttk.Entry(self.tab_direct, font=("Segoe UI", 9))
-        self.entry_direct_path.pack(fill="x", pady=(0, 8))
+        self.entry_direct_path = tk.Entry(self.tab_direct, font=("Segoe UI", 9.5), bg="#0f172a", fg="#ffffff", insertbackground="#ffffff", relief="flat", highlightthickness=1, highlightbackground="#334155", highlightcolor="#818cf8")
+        self.entry_direct_path.pack(fill="x", pady=(0, 8), ipady=4)
         
         default_direct = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria2.mp4"
         self.entry_direct_path.insert(0, default_direct)
