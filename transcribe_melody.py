@@ -331,7 +331,7 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
             else:
                 pitch_diff = abs(midi_pitch - np.median(current_note['pitches']))
                 if pitch_diff <= 1.2:
-                    current_note['end'] = times[i] + hop_length/sr,
+                    current_note['end'] = times[i] + hop_length/sr
                     current_note['pitches'].append(midi_pitch)
                 else:
                     notes.append(current_note)
