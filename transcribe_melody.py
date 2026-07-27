@@ -121,7 +121,7 @@ def calculate_note_velocities(notes, y, sr):
         
     return notes
 
-def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=100, fmax=1800, log_callback=None):
+def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=220, fmax=1400, rms_threshold="auto", log_callback=None):
     def log(msg):
         print(msg)
         if log_callback:
@@ -148,7 +148,20 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     hop_length = 512
     rms = librosa.feature.rms(y=y_harmonic, hop_length=hop_length)[0]
     
-    # 3. Detección de pitch pYIN acotada a la tesitura de la bandurria (100 Hz a 1800 Hz)
+    if rms_threshold == "auto" or rms_threshold is None:
+        # Estimar según el ruido de fondo (percentil 10)
+        base_noise = np.percentile(rms, 10)
+        rms_threshold = float(np.clip(base_noise * 2.0, 0.008, 0.025))
+        log(f"Umbral de puerta de ruido estimado automáticamente: {rms_threshold:.4f}")
+    else:
+        try:
+            rms_threshold = float(rms_threshold)
+            log(f"Usando umbral de puerta de ruido manual: {rms_threshold:.4f}")
+        except ValueError:
+            rms_threshold = 0.015
+            log(f"Valor de umbral inválido. Usando por defecto: {rms_threshold:.4f}")
+            
+    # 3. Detección de pitch pYIN acotada a la tesitura melódica de la bandurria (220 Hz a 1400 Hz)
     log(f"Calculando afinación de notas ({fmin} Hz a {fmax} Hz)...")
     f0, voiced_flag, voiced_probs = librosa.pyin(
         y_harmonic, 
@@ -163,13 +176,9 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     import scipy.signal
     f0 = scipy.signal.medfilt(f0, kernel_size=5)
     
-    log("Segmentando notas por tono continuo...")
     times = librosa.frames_to_time(np.arange(len(f0)), sr=sr, hop_length=hop_length)
     notes = []
     current_note = None
-    
-    rms_threshold = 0.015
-    
     for i in range(len(f0)):
         f = f0[i]
         r = rms[min(i, len(rms)-1)]
@@ -218,7 +227,17 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     # 1. Unificación de Trémolos de Bandurria
     log("Unificando trémolos de púa de la bandurria...")
     merged_notes = merge_tremolo_notes(filtered_notes, max_gap=0.18, max_pitch_diff=1.0)
-    log(f"Notas tras unificar trémolo: {len(merged_notes)}")
+    
+    # 2. Filtrado de notas espurias/graves de entrada (ruido de manejo pre-interpretación)
+    if merged_notes:
+        all_pitches = [n['pitch'] for n in merged_notes]
+        median_pitch = float(np.median(all_pitches))
+        # Eliminar notas que estén más de 12 semitonos (1 octava) por debajo del tono medio de la canción
+        cleaned_notes = [n for n in merged_notes if (median_pitch - n['pitch']) <= 12]
+        if len(cleaned_notes) > 0:
+            merged_notes = cleaned_notes
+            
+    log(f"Notas tras unificar trémolo y limpiar ruidos graves: {len(merged_notes)}")
     
     # 2. Cuantización rítmica para MuseScore
     if bpm == "auto" or bpm == 0 or bpm is None:
@@ -274,6 +293,7 @@ if __name__ == "__main__":
     parser.add_argument("output", nargs="?", help="Ruta de salida para el archivo MIDI (.mid)")
     parser.add_argument("--bpm", type=int, default=120, help="Tempo estimado en BPM para cuantización (por defecto 120, 0 para desactivar)")
     parser.add_argument("--subdivision", type=int, default=16, help="Subdivisión para la rejilla rítmica (16 = semicorcheas, 8 = corcheas)")
+    parser.add_argument("--rms-threshold", default="auto", help="Umbral de energía RMS para puerta de ruido (ej: 0.015, o 'auto')")
     parser.add_argument("--gui", action="store_true", help="Abrir la Interfaz Gráfica de Usuario")
     
     args = parser.parse_args()
@@ -282,7 +302,7 @@ if __name__ == "__main__":
         from gui import launch_gui
         launch_gui()
     elif args.input and args.output:
-        transcribe_audio_to_midi(args.input, args.output, bpm=args.bpm, subdivision=args.subdivision)
+        transcribe_audio_to_midi(args.input, args.output, bpm=args.bpm, subdivision=args.subdivision, rms_threshold=args.rms_threshold)
     else:
         # Valores por defecto en consola
         audio_file = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria.mp4"
@@ -290,5 +310,5 @@ if __name__ == "__main__":
         print(f"No se proporcionaron argumentos completos. Ejecutando con valores por defecto:")
         print(f"Entrada: {audio_file}")
         print(f"Salida: {output_midi}\n")
-        transcribe_audio_to_midi(audio_file, output_midi, bpm=args.bpm, subdivision=args.subdivision)
+        transcribe_audio_to_midi(audio_file, output_midi, bpm=args.bpm, subdivision=args.subdivision, rms_threshold=args.rms_threshold)
 

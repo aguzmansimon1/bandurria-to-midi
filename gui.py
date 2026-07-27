@@ -223,6 +223,35 @@ class BandurriaTranscriberGUI:
         self.combo_subdiv.current(0)
         self.combo_subdiv.grid(row=2, column=3, sticky="w")
 
+        # Umbral de Puerta de Ruido (Noise Gate)
+        lbl_gate_header = ttk.Label(card_opts, text="Puerta de Ruido (Noise Gate):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
+        lbl_gate_header.grid(row=3, column=0, columnspan=4, sticky="w", pady=(12, 4))
+
+        self.var_auto_gate = tk.BooleanVar(value=True)
+        self.chk_auto_gate = ttk.Checkbutton(card_opts, text="⚙️ Estimar umbral de ruido automáticamente", variable=self.var_auto_gate, style="TCheckbutton", command=self.toggle_gate_state)
+        self.chk_auto_gate.grid(row=4, column=0, columnspan=4, sticky="w", pady=(0, 4))
+
+        lbl_gate_val = ttk.Label(card_opts, text="Umbral Manual (RMS):", style="Card.TLabel")
+        lbl_gate_val.grid(row=5, column=0, sticky="w", padx=(0, 8))
+
+        self.scale_gate = tk.Scale(
+            card_opts, 
+            from_=0.005, 
+            to=0.050, 
+            resolution=0.001, 
+            orient="horizontal", 
+            bg=self.CARD_BG, 
+            fg=self.TEXT_MUTED, 
+            troughcolor=self.BG_COLOR, 
+            activebackground=self.ACCENT_PRIMARY, 
+            highlightthickness=0, 
+            showvalue=True, 
+            state="disabled", 
+            length=220
+        )
+        self.scale_gate.set(0.015)
+        self.scale_gate.grid(row=5, column=1, columnspan=3, sticky="w")
+
         # Barra de Progreso y Consola de Log
         self.progress_var = tk.DoubleVar()
         self.progressbar = ttk.Progressbar(main_container, variable=self.progress_var, maximum=100)
@@ -298,9 +327,15 @@ class BandurriaTranscriberGUI:
 
     def toggle_bpm_state(self):
         if self.var_auto_bpm.get():
-            self.spin_bpm.config(state="disabled", fg="#64748b")
+            self.spin_bpm.config(state="disabled", fg=self.TEXT_MUTED)
         else:
-            self.spin_bpm.config(state="normal", fg="#ffffff")
+            self.spin_bpm.config(state="normal", fg=self.TEXT_MAIN)
+
+    def toggle_gate_state(self):
+        if self.var_auto_gate.get():
+            self.scale_gate.config(state="disabled", fg=self.TEXT_MUTED)
+        else:
+            self.scale_gate.config(state="normal", fg=self.TEXT_MAIN)
 
     def start_transcription_thread(self):
         selected_tab = self.notebook.index(self.notebook.select())
@@ -381,10 +416,18 @@ class BandurriaTranscriberGUI:
         
         self.last_midi_output = midi_path
         
-        thread = threading.Thread(target=self.run_transcription, args=(audio_path, midi_path, bpm, subdiv), daemon=True)
+        if self.var_auto_gate.get():
+            gate_val = "auto"
+        else:
+            try:
+                gate_val = float(self.scale_gate.get())
+            except ValueError:
+                gate_val = 0.015
+        
+        thread = threading.Thread(target=self.run_transcription, args=(audio_path, midi_path, bpm, subdiv, gate_val), daemon=True)
         thread.start()
 
-    def run_transcription(self, audio_path, midi_path, bpm, subdiv):
+    def run_transcription(self, audio_path, midi_path, bpm, subdiv, gate_val):
         try:
             def callback(msg):
                 self.log(msg)
@@ -404,6 +447,7 @@ class BandurriaTranscriberGUI:
                 midi_path=midi_path,
                 bpm=bpm,
                 subdivision=subdiv,
+                rms_threshold=gate_val,
                 log_callback=callback
             )
             
