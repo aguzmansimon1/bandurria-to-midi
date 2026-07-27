@@ -485,8 +485,16 @@ class BandurriaTranscriberGUI:
 
     def open_in_musescore(self):
         midi_path = self.last_midi_output or self.entry_output.get().strip()
-        if not midi_path or not os.path.exists(midi_path):
-            messagebox.showwarning("Aviso", f"El archivo MIDI no existe aún en el disco:\n'{midi_path}'\n\nPor favor, ejecuta primero la conversión.")
+        if not midi_path:
+            messagebox.showwarning("Aviso", "Por favor, ejecuta primero la conversión.")
+            return
+            
+        base_path, _ = os.path.splitext(midi_path)
+        musicxml_path = base_path + ".musicxml"
+        
+        target_file = musicxml_path if os.path.exists(musicxml_path) else midi_path
+        if not os.path.exists(target_file):
+            messagebox.showwarning("Aviso", f"El archivo de partitura no existe aún en el disco:\n'{target_file}'\n\nPor favor, ejecuta primero la conversión.")
             return
             
         possible_paths = [
@@ -502,9 +510,9 @@ class BandurriaTranscriberGUI:
                 
         try:
             if musescore_exe:
-                subprocess.Popen([musescore_exe, midi_path])
+                subprocess.Popen([musescore_exe, target_file])
             else:
-                os.startfile(midi_path)
+                os.startfile(target_file)
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo abrir MuseScore automáticamente:\n{str(e)}")
 

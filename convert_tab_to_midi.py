@@ -48,19 +48,41 @@ def create_midi_from_tab(tab_text, output_midi_path, bpm=120, note_duration=0.4,
     current_time = 0.0
     step = note_duration + silence
     
+    notes_list = []
     for p in pitches:
+        start_t = current_time
+        end_t = current_time + note_duration
         note = pretty_midi.Note(
             velocity=90,
             pitch=p,
-            start=current_time,
-            end=current_time + note_duration
+            start=start_t,
+            end=end_t
         )
         piano_inst.notes.append(note)
+        notes_list.append({
+            'pitch': p,
+            'start': start_t,
+            'end': end_t,
+            'velocity': 90,
+            'dynamic': 'mf'
+        })
         current_time += step
         
     pm.instruments.append(piano_inst)
     pm.write(output_midi_path)
     print(f"MIDI desde tablatura generado con éxito: {output_midi_path} ({len(pitches)} notas)")
+    
+    # Generar también versión MusicXML
+    try:
+        from transcribe_melody import export_to_musicxml
+        base_path, _ = os.path.splitext(output_midi_path)
+        musicxml_path = base_path + ".musicxml"
+        song_title = os.path.basename(base_path).replace("_", " ").title()
+        export_to_musicxml(notes_list, musicxml_path, bpm=bpm, title=song_title)
+        print(f"MusicXML desde tablatura generado con éxito: {musicxml_path}")
+    except Exception as e:
+        print(f"Aviso al exportar MusicXML desde tablatura: {str(e)}")
+        
     return output_midi_path
 
 if __name__ == "__main__":

@@ -5,6 +5,8 @@ import av
 import numpy as np
 import librosa
 import pretty_midi
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
 
 def load_audio_av(path):
     print(f"Decodificando audio desde: {path}...")
@@ -97,29 +99,157 @@ def quantize_notes(notes, bpm=120, subdivision=16):
         
     return cleaned
 
+def midi_to_musicxml_pitch(midi_num):
+    steps = ['C', 'C', 'D', 'D', 'E', 'F', 'F', 'G', 'G', 'A', 'A', 'B']
+    alters = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0]
+    idx = midi_num % 12
+    octave = (midi_num // 12) - 1
+    return steps[idx], alters[idx], octave
+
 def calculate_note_velocities(notes, y, sr):
     """
-    Calcula la intensidad (velocity MIDI 0-127) según la energía RMS del audio en cada nota.
+    Calcula la intensidad (velocity MIDI 0-127) y matices dinámicos según la energía RMS del audio en cada nota.
     """
     if not notes:
         return notes
         
+    rms_values = []
+    peak_values = []
+    
     for n in notes:
         start_sample = int(max(0, n['start'] * sr))
         end_sample = int(min(len(y), n['end'] * sr))
         
         if end_sample > start_sample:
             segment = y[start_sample:end_sample]
-            rms = np.sqrt(np.mean(segment**2)) if len(segment) > 0 else 0.01
+            rms = float(np.sqrt(np.mean(segment**2))) if len(segment) > 0 else 0.01
+            peak = float(np.max(np.abs(segment))) if len(segment) > 0 else 0.01
         else:
             rms = 0.01
+            peak = 0.01
             
-        # Mapear RMS a rango MIDI (p. ej. entre 55 y 115)
-        # Asumiendo un nivel RMS típico entre 0.005 y 0.2
-        velocity = int(np.clip(55 + (rms / 0.15) * 60, 50, 120))
-        n['velocity'] = velocity
+        n['rms'] = rms
+        n['peak'] = peak
+        rms_values.append(rms)
+        peak_values.append(peak)
         
+    rms_p10 = float(np.percentile(rms_values, 10)) if rms_values else 0.01
+    rms_p90 = float(np.percentile(rms_values, 90)) if rms_values else 0.15
+    rms_range = max(1e-4, rms_p90 - rms_p10)
+    
+    for n in notes:
+        rel_energy = (n['rms'] - rms_p10) / rms_range
+        velocity = int(np.clip(52 + rel_energy * 60, 45, 118))
+        
+        # Detección de acento de púa (si el pico del ataque es > 1.35x el RMS medio del segmento)
+        is_accent = (n['peak'] > 1.35 * n['rms'])
+        if is_accent:
+            velocity = min(127, velocity + 10)
+            
+        n['velocity'] = velocity
+        n['is_accent'] = is_accent
+        
+        if velocity >= 98:
+            n['dynamic'] = 'f'
+        elif velocity >= 82:
+            n['dynamic'] = 'mf'
+        elif velocity >= 68:
+            n['dynamic'] = 'mp'
+        else:
+            n['dynamic'] = 'p'
+            
     return notes
+
+def export_to_musicxml(notes, xml_path, bpm=120, title="Partitura de Bandurria"):
+    """
+    Genera un archivo nativo de MusicXML (.musicxml) maquetado con Clave de Sol, 
+    compás de 4/4, acentos de púa y matices dinámicos para MuseScore 4.
+    """
+    if not notes:
+        return
+        
+    score = ET.Element('score-partwise', version='4.0')
+    work = ET.SubElement(score, 'work')
+    ET.SubElement(work, 'work-title').text = title
+
+    part_list = ET.SubElement(score, 'part-list')
+    score_part = ET.SubElement(part_list, 'score-part', id='P1')
+    ET.SubElement(score_part, 'part-name').text = 'Bandurria / Piano'
+
+    part = ET.SubElement(score, 'part', id='P1')
+
+    divisions = 4 # Ticks por negra
+    beat_sec = 60.0 / (bpm if bpm > 0 else 120.0)
+    measure_dur_sec = 4.0 * beat_sec
+
+    measures = {}
+    sorted_notes = sorted(notes, key=lambda n: n['start'])
+
+    for n in sorted_notes:
+        start_sec = n['start']
+        dur_sec = max(0.125 * beat_sec, n['end'] - n['start'])
+        pitch = n['pitch']
+        is_accent = n.get('is_accent', False)
+        dynamic = n.get('dynamic', None)
+
+        m_num = int(start_sec // measure_dur_sec) + 1
+        if m_num not in measures:
+            m_elt = ET.SubElement(part, 'measure', number=str(m_num))
+            measures[m_num] = m_elt
+            if m_num == 1:
+                attr = ET.SubElement(m_elt, 'attributes')
+                ET.SubElement(attr, 'divisions').text = str(divisions)
+                key = ET.SubElement(attr, 'key')
+                ET.SubElement(key, 'fifths').text = '0'
+                time_elt = ET.SubElement(attr, 'time')
+                ET.SubElement(time_elt, 'beats').text = '4'
+                ET.SubElement(time_elt, 'beat-type').text = '4'
+                clef = ET.SubElement(attr, 'clef')
+                ET.SubElement(clef, 'sign').text = 'G'
+                ET.SubElement(clef, 'line').text = '2'
+
+                direction = ET.SubElement(m_elt, 'direction', placement='above')
+                dir_type = ET.SubElement(direction, 'direction-type')
+                metro = ET.SubElement(dir_type, 'metronome')
+                ET.SubElement(metro, 'beat-unit').text = 'quarter'
+                ET.SubElement(metro, 'per-minute').text = str(int(bpm if bpm > 0 else 120))
+
+        current_measure = measures[m_num]
+
+        if dynamic:
+            dir_dyn = ET.SubElement(current_measure, 'direction', placement='below')
+            dt = ET.SubElement(dir_dyn, 'direction-type')
+            dyn = ET.SubElement(dt, 'dynamics')
+            ET.SubElement(dyn, dynamic)
+
+        note_elt = ET.SubElement(current_measure, 'note')
+
+        step, alter, octave = midi_to_musicxml_pitch(pitch)
+        p_elt = ET.SubElement(note_elt, 'pitch')
+        ET.SubElement(p_elt, 'step').text = step
+        if alter != 0:
+            ET.SubElement(p_elt, 'alter').text = str(alter)
+        ET.SubElement(p_elt, 'octave').text = str(octave)
+
+        duration_divs = max(1, int(round((dur_sec / beat_sec) * divisions)))
+        ET.SubElement(note_elt, 'duration').text = str(duration_divs)
+
+        if duration_divs >= 4:
+            note_type = 'quarter'
+        elif duration_divs >= 2:
+            note_type = 'eighth'
+        else:
+            note_type = 'sixteenth'
+        ET.SubElement(note_elt, 'type').text = note_type
+
+        if is_accent:
+            notations = ET.SubElement(note_elt, 'notations')
+            articulations = ET.SubElement(notations, 'articulations')
+            ET.SubElement(articulations, 'accent')
+
+    xml_str = minidom.parseString(ET.tostring(score)).toprettyxml(indent='  ')
+    with open(xml_path, "w", encoding="utf-8") as f:
+        f.write(xml_str)
 
 def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=220, fmax=1400, rms_threshold="auto", log_callback=None):
     def log(msg):
@@ -201,7 +331,7 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
             else:
                 pitch_diff = abs(midi_pitch - np.median(current_note['pitches']))
                 if pitch_diff <= 1.2:
-                    current_note['end'] = times[i] + hop_length/sr
+                    current_note['end'] = times[i] + hop_length/sr,
                     current_note['pitches'].append(midi_pitch)
                 else:
                     notes.append(current_note)
@@ -232,14 +362,13 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     if merged_notes:
         all_pitches = [n['pitch'] for n in merged_notes]
         median_pitch = float(np.median(all_pitches))
-        # Eliminar notas que estén más de 12 semitonos (1 octava) por debajo del tono medio de la canción
         cleaned_notes = [n for n in merged_notes if (median_pitch - n['pitch']) <= 12]
         if len(cleaned_notes) > 0:
             merged_notes = cleaned_notes
             
     log(f"Notas tras unificar trémolo y limpiar ruidos graves: {len(merged_notes)}")
     
-    # 2. Cuantización rítmica para MuseScore
+    # 3. Cuantización rítmica para MuseScore
     if bpm == "auto" or bpm == 0 or bpm is None:
         log("Estimando tempo (BPM) automáticamente del audio de la canción...")
         try:
@@ -264,7 +393,7 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     else:
         final_notes = merged_notes
         
-    # 3. Dinámicas y Velocity por nota
+    # 4. Dinámicas e Intensidad RMS por nota
     final_notes = calculate_note_velocities(final_notes, y, sr)
     
     log(f"Escribiendo archivo MIDI en sonido de Piano ({len(final_notes)} notas finalizadas)...")
@@ -286,6 +415,16 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     pm.instruments.append(piano_inst)
     pm.write(midi_path)
     log(f"¡Éxito! MIDI guardado en: {midi_path}")
+    
+    # 5. Generación nativa de MusicXML (.musicxml) para MuseScore
+    try:
+        base_path, _ = os.path.splitext(midi_path)
+        musicxml_path = base_path + ".musicxml"
+        song_title = os.path.basename(base_path).replace("_", " ").title()
+        export_to_musicxml(final_notes, musicxml_path, bpm=bpm, title=song_title)
+        log(f"¡Éxito! MusicXML generado para MuseScore en: {musicxml_path}")
+    except Exception as e:
+        log(f"Aviso al exportar MusicXML: {str(e)}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Transcriptor de Melodías de Bandurria a MIDI (MuseScore)")
