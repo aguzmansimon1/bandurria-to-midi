@@ -7,6 +7,10 @@ import librosa
 import pretty_midi
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
+import spectral_matching
+import seed_tracking
+
+
 
 def load_audio_av(path):
     print(f"Decodificando audio desde: {path}...")
@@ -251,7 +255,7 @@ def export_to_musicxml(notes, xml_path, bpm=120, title="Partitura de Bandurria")
     with open(xml_path, "w", encoding="utf-8") as f:
         f.write(xml_str)
 
-def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=220, fmax=1400, rms_threshold="auto", log_callback=None):
+def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=220, fmax=1400, rms_threshold="auto", algorithm="pyin", seed_midi=76, log_callback=None):
     def log(msg):
         print(msg)
         if log_callback:
@@ -291,63 +295,149 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
             rms_threshold = 0.015
             log(f"Valor de umbral inválido. Usando por defecto: {rms_threshold:.4f}")
             
-    # 3. Detección de pitch pYIN acotada a la tesitura melódica de la bandurria (220 Hz a 1400 Hz)
-    log(f"Calculando afinación de notas ({fmin} Hz a {fmax} Hz)...")
-    f0, voiced_flag, voiced_probs = librosa.pyin(
-        y_harmonic, 
-        fmin=fmin, 
-        fmax=fmax, 
-        sr=sr,
-        hop_length=hop_length,
-        fill_na=0.0
-    )
-    
-    # Suavizado medfilt para eliminar saltos rápidos
-    import scipy.signal
-    f0 = scipy.signal.medfilt(f0, kernel_size=5)
-    
-    times = librosa.frames_to_time(np.arange(len(f0)), sr=sr, hop_length=hop_length)
-    notes = []
-    current_note = None
-    for i in range(len(f0)):
-        f = f0[i]
-        r = rms[min(i, len(rms)-1)]
+    # 3. Detección de pitch según el algoritmo seleccionado (Spotify AI vs Seed vs Spectral vs PyIN)
+    if algorithm in ("basic_pitch", "spotify_ai"):
+        import spotify_ai_transcriber
+        return spotify_ai_transcriber.transcribe_with_spotify_ai(
+            audio_path=audio_path,
+            midi_path=midi_path,
+            bpm=bpm,
+            subdivision=subdivision,
+            fmin=fmin,
+            fmax=fmax,
+            rms_threshold=rms_threshold,
+            log_callback=log_callback
+        )
         
-        # Filtro de silencio por energía RMS
-        if r < rms_threshold:
-            f = 0.0
-            
-        if f > 0:
-            midi_pitch = librosa.hz_to_midi(f)
-            rounded_pitch = int(round(midi_pitch))
-            
-            if current_note is None:
-                current_note = {
-                    'pitch': rounded_pitch,
-                    'start': times[i],
-                    'end': times[i] + hop_length/sr,
-                    'pitches': [midi_pitch]
-                }
-            else:
-                pitch_diff = abs(midi_pitch - np.median(current_note['pitches']))
-                if pitch_diff <= 1.2:
-                    current_note['end'] = times[i] + hop_length/sr
-                    current_note['pitches'].append(midi_pitch)
+    notes = []
+    if algorithm == "seed":
+        seed_info = seed_tracking.get_info_from_midi(seed_midi)
+        log(f"Calculando trayectoria melódica guiada por Nota Semilla: {seed_info['note_es']} (Cifrado: {seed_info['cifrado']})...")
+        f0_midi, rms_out = seed_tracking.transcribe_with_seed_note(
+            y_harmonic, sr=sr, seed_midi=seed_midi, hop_length=hop_length, fmin=fmin, fmax=fmax, rms_threshold=rms_threshold
+        )
+        times = librosa.frames_to_time(np.arange(len(f0_midi)), sr=sr, hop_length=hop_length)
+        current_note = None
+        for i in range(len(f0_midi)):
+            m_pitch = f0_midi[i]
+            if m_pitch > 0:
+                rounded_pitch = int(round(m_pitch))
+                if current_note is None:
+                    current_note = {
+                        'pitch': rounded_pitch,
+                        'start': times[i],
+                        'end': times[i] + hop_length/sr,
+                        'pitches': [m_pitch]
+                    }
                 else:
+                    pitch_diff = abs(m_pitch - np.median(current_note['pitches']))
+                    if pitch_diff <= 1.2:
+                        current_note['end'] = times[i] + hop_length/sr
+                        current_note['pitches'].append(m_pitch)
+                    else:
+                        notes.append(current_note)
+                        current_note = {
+                            'pitch': rounded_pitch,
+                            'start': times[i],
+                            'end': times[i] + hop_length/sr,
+                            'pitches': [m_pitch]
+                        }
+            else:
+                if current_note is not None:
                     notes.append(current_note)
+                    current_note = None
+        if current_note is not None:
+            notes.append(current_note)
+    elif algorithm == "spectral":
+        log("Calculando afinación de notas mediante Análisis por Síntesis (Cotejo Armónico)...")
+        f0_midi, similarity, rms_out = spectral_matching.analyze_audio_spectral_matching(
+            y_harmonic, sr=sr, hop_length=hop_length, fmin=fmin, fmax=fmax, rms_threshold=rms_threshold
+        )
+        times = librosa.frames_to_time(np.arange(len(f0_midi)), sr=sr, hop_length=hop_length)
+        current_note = None
+        for i in range(len(f0_midi)):
+            m_pitch = f0_midi[i]
+            if m_pitch > 0:
+                rounded_pitch = int(round(m_pitch))
+                if current_note is None:
+                    current_note = {
+                        'pitch': rounded_pitch,
+                        'start': times[i],
+                        'end': times[i] + hop_length/sr,
+                        'pitches': [m_pitch]
+                    }
+                else:
+                    pitch_diff = abs(m_pitch - np.median(current_note['pitches']))
+                    if pitch_diff <= 1.2:
+                        current_note['end'] = times[i] + hop_length/sr
+                        current_note['pitches'].append(m_pitch)
+                    else:
+                        notes.append(current_note)
+                        current_note = {
+                            'pitch': rounded_pitch,
+                            'start': times[i],
+                            'end': times[i] + hop_length/sr,
+                            'pitches': [m_pitch]
+                        }
+            else:
+                if current_note is not None:
+                    notes.append(current_note)
+                    current_note = None
+        if current_note is not None:
+            notes.append(current_note)
+    else:
+        log(f"Calculando afinación de notas con PyIN ({fmin} Hz a {fmax} Hz)...")
+        f0, voiced_flag, voiced_probs = librosa.pyin(
+            y_harmonic, 
+            fmin=fmin, 
+            fmax=fmax, 
+            sr=sr,
+            hop_length=hop_length,
+            fill_na=0.0
+        )
+        import scipy.signal
+        f0 = scipy.signal.medfilt(f0, kernel_size=5)
+        
+        times = librosa.frames_to_time(np.arange(len(f0)), sr=sr, hop_length=hop_length)
+        current_note = None
+        for i in range(len(f0)):
+            f = f0[i]
+            r = rms[min(i, len(rms)-1)]
+            
+            if r < rms_threshold:
+                f = 0.0
+                
+            if f > 0:
+                midi_pitch = librosa.hz_to_midi(f)
+                rounded_pitch = int(round(midi_pitch))
+                
+                if current_note is None:
                     current_note = {
                         'pitch': rounded_pitch,
                         'start': times[i],
                         'end': times[i] + hop_length/sr,
                         'pitches': [midi_pitch]
                     }
-        else:
-            if current_note is not None:
-                notes.append(current_note)
-                current_note = None
-                
-    if current_note is not None:
-        notes.append(current_note)
+                else:
+                    pitch_diff = abs(midi_pitch - np.median(current_note['pitches']))
+                    if pitch_diff <= 1.2:
+                        current_note['end'] = times[i] + hop_length/sr
+                        current_note['pitches'].append(midi_pitch)
+                    else:
+                        notes.append(current_note)
+                        current_note = {
+                            'pitch': rounded_pitch,
+                            'start': times[i],
+                            'end': times[i] + hop_length/sr,
+                            'pitches': [midi_pitch]
+                        }
+            else:
+                if current_note is not None:
+                    notes.append(current_note)
+                    current_note = None
+                    
+        if current_note is not None:
+            notes.append(current_note)
 
     # Filtrar notas ruidosas ultra cortas (<100ms)
     min_note_duration = 0.10
@@ -425,6 +515,13 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
         log(f"¡Éxito! MusicXML generado para MuseScore en: {musicxml_path}")
     except Exception as e:
         log(f"Aviso al exportar MusicXML: {str(e)}")
+
+    # 6. Evaluación Automática de Precisión (% de acierto melódico)
+    log("📊 Calculando porcentaje de acierto melódico entre el audio original y el MIDI generado...")
+    accuracy_pct = seed_tracking.evaluate_midi_accuracy(audio_path, midi_path)
+    log(f"🎯 ¡Evaluación Completada! Porcentaje de Acierto Melódico: {accuracy_pct}%")
+    return accuracy_pct
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Transcriptor de Melodías de Bandurria a MIDI (MuseScore)")

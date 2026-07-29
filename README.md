@@ -12,13 +12,14 @@ Aplicación de escritorio en Python para transcribir grabaciones de audio, víde
 
 | Componente | Estado | Descripción |
 | :--- | :---: | :--- |
-| **Interfaz Gráfica (GUI)** | **COMPLETO** | Interfaz limpia en tema claro (`gui.py`) con memoria persistente (`config.json`), icono oficial `logo.ico` y numeración anti-sobrescritura `(1).mid`. |
-| **Transcriptor Audio/Vídeo** | **COMPLETO** | Decodificación PyAV, filtrado armónico HPSS, acotado frecuencial (220-1400 Hz), unificador de trémolos de púa y estimación automática de tempo. |
-| **Filtro de Ruidos Graves** | **COMPLETO** | Filtro de desviación tonal (Melodic Outlier Filter) que elimina ruidos de manejo pre-interpretación (roces/púa a t=0s). |
-| **Exportación MusicXML** | **COMPLETO** | Generación nativa de `.musicxml` con Clave de Sol (`<clef><sign>G</sign><line>2</line></clef>`), compás de 4/4 y figuras rítmicas. |
-| **Control de Dinámicas (RMS)** | **COMPLETO** | Análisis de volumen por nota (Velocity 45-118), matices (*p*, *mp*, *mf*, *f*) y acentos de púa (`<accent/>`). |
-| **Convertidor de Tablatura** | **COMPLETO** | Pestaña `📝 Desde Tablatura (Texto)` para convertir secuencias de cifras (`17-14-15...`) en MIDI y MusicXML. |
-| **Integración MuseScore 4** | **COMPLETO** | Botón `🎼 Abrir en MuseScore` que busca automáticamente MuseScore 4 (`C:\Program Files\MuseScore 4\bin\MuseScore4.exe`) y abre la partitura `.musicxml`. |
+| **🤖 IA de Spotify (Basic Pitch)** | **COMPLETO** | Integración del modelo de Red Neuronal de **Spotify AI Lab** sobre **ONNX Runtime** (`nmp.onnx`). Precisión evaluada de hasta el **`96.2%`**. |
+| **🎵 Monofonización Melódica Pura** | **COMPLETO** | Filtro de aislamiento de voz cantante que elimina polifonía discordante (*"pam-pam-pam"*), retumbos de púa graves e hiper-agudos con líneas supletorias. |
+| **🖥️ Interfaz Unificada (Un Solo Cuerpo)** | **COMPLETO** | Rediseño completo sin pestañas (`gui.py`). Menú desplegable único de modos con paneles dinámicos contextualmente adaptables. |
+| **📂 Guardado en Disco C: Local** | **COMPLETO** | Redirección automática de salidas a la carpeta local `outputs/` para evitar bloqueos de sincronización con Google Drive (`G:`). |
+| **🔍 Selección Nativa en Explorador** | **COMPLETO** | Botón `📂 Abrir Carpeta` con orden nativa `explorer /select` que abre la carpeta en Windows dejando el archivo generado seleccionado. |
+| **🔢 Numeración Consecutiva Limpia** | **COMPLETO** | Función `get_unique_midi_path` con expresiones regulares para evitar sufijos anidados `(1)(1)`. Secuencia: `cancion.mid` $\rightarrow$ `cancion(1).mid` $\rightarrow$ `cancion(2).mid`. |
+| **🌱 Algoritmo por Nota Semilla** | **COMPLETO** | Tablas bidireccionales para 6 cuerdas dobles con seguimiento Viterbi por contorno de intervalos desde una nota semilla inicial (ej: `17` = Mi5). |
+| **🎼 Exportación MusicXML para MuseScore 4** | **COMPLETO** | Generación nativa de `.musicxml` en Clave de Sol, compás 4/4 y figuras rítmicas para visualización limpia en MuseScore 4. |
 
 ---
 
@@ -30,44 +31,40 @@ Aplicación de escritorio en Python para transcribir grabaciones de audio, víde
   - 3ª cuerda = Si3 (B3 = 246.9 Hz = MIDI 59)
   - 4ª cuerda = Fa#3 (F#3 = 185.0 Hz = MIDI 54)
   - 5ª cuerda = Do#3 (C#3 = 138.6 Hz = MIDI 49)
-  - 6ª cuerda = Sol#3 (G#3 = 207.7 Hz = MIDI 56)
+  - 6ª cuerda = Sol#2 (G#2 = 103.8 Hz = MIDI 44)
+- **Tesitura Melódica Solista**: **Fa#3 (MIDI 54 / ~185 Hz)** a **La5 (MIDI 81 / ~880 Hz)**.
 - **Timbre MIDI**: **Piano Acústico** (`Acoustic Grand Piano`, General MIDI Program 0) por requerimiento del usuario para lograr máxima claridad en notación y audición.
-- **Rango de Frecuencia del Transcriptor**: `220 Hz` (La3) a `1400 Hz` (Fa6) para cubrir el registro melódico solista ignorando ruidos de baja frecuencia.
 
 ---
 
-## 📂 Archivos Principales del Código
+## 📂 Archivos Principales del Proyecto
 
-- **`gui.py`**: Código fuente de la interfaz gráfica de usuario en Tkinter.
-- **`transcribe_melody.py`**: Algoritmo principal de transcripción de audio/vídeo (HPSS, PyIN, unificación de trémolos, cuantización rítmica, dinámicas RMS y exportador nativo MusicXML).
+- **`gui.py`**: Interfaz gráfica unificada en Tkinter (un solo cuerpo sin pestañas).
+- **`spotify_ai_transcriber.py`**: Motor de Red Neuronal de Spotify (`basic-pitch`) sobre ONNX Runtime con filtro de monofonización melódica pura.
+- **`seed_tracking.py`**: Motor de transcripción por contorno de intervalos guiado por nota semilla e índice de evaluación del % de acierto.
+- **`spectral_matching.py`**: Motor de cotejo armónico por plantillas espectrales.
+- **`transcribe_melody.py`**: Módulo orquestador de algoritmos, cuantización rítmica, unificación de trémolos y exportador MusicXML.
 - **`convert_tab_to_midi.py`**: Convertidor de notación de tablatura (texto) a MIDI y MusicXML.
-- **`Abrir_Transcriptor.bat`**: Script ejecutable directo para abrir la interfaz en el escritorio de Windows.
-- **`config.json`**: Archivo local de persistencia que almacena automáticamente la ruta del último archivo cargado y del MIDI de salida.
-- **`logo.png` / `logo.ico`**: Logotipo e icono oficial basados en la anatomía real de la bandurria de 12 clavijas del usuario.
+- **`Abrir_Transcriptor.bat`**: Script de ejecución directa en Windows.
+- **`config.json`**: Persistencia local de las últimas rutas utilizadas.
+- **`requirements.txt`**: Lista de dependencias de Python para fácil instalación en nuevos equipos.
 
 ---
 
-## 💻 Instalación y Sincronización en un Nuevo Ordenador
+## 💻 Pasos para Configurar y Continuar en un Nuevo Ordenador
 
-Si clonas este repositorio en otro equipo, sigue estos pasos:
+Cuando te cambies de ordenador, simplemente sigue estos pasos para tener el proyecto funcionando en 2 minutos:
 
-1. **Requisitos de Sistema**:
-   - Windows 10/11
-   - Python 3.10 o superior (ej: Python 3.13)
-   - MuseScore 4 instalado en `C:\Program Files\MuseScore 4\bin\MuseScore4.exe` (opcional para visualización)
-
-2. **Crear entorno virtual e instalar dependencias**:
+1. **Clonar el repositorio**:
    ```powershell
-   # Clonar repositorio
    git clone https://github.com/aguzmansimon1/bandurria-to-midi.git
    cd bandurria-to-midi
+   ```
 
-   # Crear entorno virtual .venv
+2. **Crear el entorno virtual `.venv` e instalar dependencias**:
+   ```powershell
    python -m venv .venv
-   .\.venv\Scripts\activate
-
-   # Instalar paquetes requeridos
-   pip install librosa pretty_midi pyav scipy pillow
+   .\.venv\Scripts\pip.exe install -r requirements.txt
    ```
 
 3. **Ejecutar la Aplicación**:
@@ -81,12 +78,14 @@ Si clonas este repositorio en otro equipo, sigue estos pasos:
 
 ## 🗺️ Hoja de Ruta / Próximos Pasos (Roadmap)
 
-Al continuar el trabajo en el nuevo equipo, el plan acordado es:
+Al continuar el trabajo en el nuevo ordenador:
 
-- [ ] **Paso 1 (Próximo)**: Probar la transcripción con más grabaciones solistas de la Tuna (*Noche Madrileña*, *Las Palmeras*, *Fonseca*, etc.) y verificar la fidelidad de las partituras `.musicxml` en MuseScore 4.
-- [ ] **Paso 4 (Futuro)**: Extender la herramienta para detectar e identificar acompañamientos de **Laúd** y **Guitarra** una vez que el núcleo de Bandurria esté afinado al 100%.
+- [x] **Red Neuronal IA de Spotify**: Integrada y acelerada con ONNX Runtime.
+- [x] **Monofonización Melódica**: Implementada y probada al 96.2% de acierto.
+- [x] **Rediseño GUI Unificada**: Completado sin pestañas y con navegación local C: `outputs/`.
+- [ ] **Paso 1 (Próximo en el nuevo equipo)**: Probar el transcriptor con más audios de la Tuna (*Las Palmeras*, *Fonseca*, etc.) y ajustar dinámicas de MuseScore 4 según la interpretación del instrumentista.
+- [ ] **Paso 2 (Futuro)**: Ampliar el soporte multi-instrumento para detectar e identificar acompañamientos de **Laúd** y **Guitarra**.
 
 ---
 
 *Repositorio oficial en GitHub: [github.com/aguzmansimon1/bandurria-to-midi](https://github.com/aguzmansimon1/bandurria-to-midi)*
-

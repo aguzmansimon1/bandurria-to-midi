@@ -8,6 +8,7 @@ import json
 from PIL import Image, ImageTk
 from transcribe_melody import transcribe_audio_to_midi
 from convert_tab_to_midi import create_midi_from_tab
+import seed_tracking
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -29,36 +30,49 @@ def save_config(data):
     except Exception:
         pass
 
+import re
+
 def get_unique_midi_path(path):
-    if not os.path.exists(path):
-        return path
-    base, ext = os.path.splitext(path)
+    directory, filename = os.path.split(path)
+    name, ext = os.path.splitext(filename)
+    
+    # Limpiar cualquier sufijo numerado previo como (1), (2), (1)(1)...
+    match = re.search(r'^(.*?)(?:\(\d+\))+$', name)
+    if match:
+        clean_name = match.group(1).rstrip()
+    else:
+        clean_name = name.rstrip()
+        
+    candidate = os.path.join(directory, f"{clean_name}{ext}")
+    if not os.path.exists(candidate):
+        return candidate
+        
     counter = 1
-    new_path = f"{base}({counter}){ext}"
-    while os.path.exists(new_path):
+    candidate = os.path.join(directory, f"{clean_name}({counter}){ext}")
+    while os.path.exists(candidate):
         counter += 1
-        new_path = f"{base}({counter}){ext}"
-    return new_path
+        candidate = os.path.join(directory, f"{clean_name}({counter}){ext}")
+    return candidate
 
 class BandurriaTranscriberGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Transcriptor de Melodías de Bandurria a MIDI (MuseScore)")
-        self.root.geometry("750x700")
-        self.root.minsize(680, 600)
+        self.root.geometry("780x820")
+        self.root.minsize(700, 720)
         
         # Paleta de colores Light Warm & Cheerful Premium
-        self.BG_COLOR = "#f8fafc"        # Slate 50 (Fondo claro, limpio y luminoso)
-        self.CARD_BG = "#ffffff"         # Blanco Puro para tarjetas
-        self.TEXT_MAIN = "#0f172a"       # Slate 900 para máxima legibilidad
-        self.TEXT_MUTED = "#64748b"      # Slate 500 para texto secundario
-        self.ACCENT_PRIMARY = "#4f46e5" # Indigo 600 elegante
-        self.ACCENT_WARM = "#d97706"    # Amber 600 cálido
-        self.BORDER_COLOR = "#e2e8f0"   # Slate 200
+        self.BG_COLOR = "#f8fafc"
+        self.CARD_BG = "#ffffff"
+        self.TEXT_MAIN = "#0f172a"
+        self.TEXT_MUTED = "#64748b"
+        self.ACCENT_PRIMARY = "#4f46e5"
+        self.ACCENT_WARM = "#d97706"
+        self.BORDER_COLOR = "#e2e8f0"
         
         self.root.configure(bg=self.BG_COLOR)
         
-        # Configurar estilos de TTK
+        # Estilos TTK
         self.style = ttk.Style()
         self.style.theme_use('clam')
         
@@ -68,18 +82,8 @@ class BandurriaTranscriberGUI:
         self.style.configure("TLabel", background=self.BG_COLOR, foreground=self.TEXT_MAIN)
         self.style.configure("Card.TLabel", background=self.CARD_BG, foreground=self.TEXT_MAIN)
         self.style.configure("Muted.TLabel", background=self.CARD_BG, foreground=self.TEXT_MUTED, font=("Segoe UI", 9))
-        self.style.configure("Header.TLabel", font=("Segoe UI", 16, "bold"), foreground=self.ACCENT_PRIMARY, background=self.BG_COLOR)
+        self.style.configure("Header.TLabel", font=("Segoe UI", 15, "bold"), foreground=self.ACCENT_PRIMARY, background=self.BG_COLOR)
         
-        # Estilo para Pestañas (Notebook) con tamaño uniforme
-        self.style.configure("TNotebook", background=self.BG_COLOR, borderwidth=0, tabmargins=[0, 0, 0, 0])
-        self.style.configure("TNotebook.Tab", background="#e2e8f0", foreground=self.TEXT_MUTED, padding=[16, 8], font=("Segoe UI", 10, "bold"), borderwidth=1, lightcolor="#e2e8f0", bordercolor="#cbd5e1")
-        self.style.map("TNotebook.Tab", 
-                       background=[("selected", self.CARD_BG), ("active", "#e2e8f0")], 
-                       foreground=[("selected", self.ACCENT_PRIMARY), ("active", self.TEXT_MAIN)],
-                       expand=[("selected", [0, 0, 0, 0])],
-                       padding=[("selected", [16, 8])])
-        
-        # Estilo de botones y controles
         self.style.configure("Primary.TButton", font=("Segoe UI", 11, "bold"), background=self.ACCENT_PRIMARY, foreground="#ffffff")
         self.style.map("Primary.TButton", background=[("active", "#4338ca")])
         self.style.configure("Secondary.TButton", font=("Segoe UI", 9, "bold"), background="#e2e8f0", foreground="#1e293b")
@@ -87,10 +91,10 @@ class BandurriaTranscriberGUI:
         
         self.style.configure("TCombobox", fieldbackground="#ffffff", background="#e2e8f0", foreground=self.TEXT_MAIN, arrowcolor=self.TEXT_MAIN, selectbackground=self.ACCENT_PRIMARY, selectforeground="#ffffff")
         self.style.map("TCombobox", fieldbackground=[("readonly", "#ffffff")], foreground=[("readonly", self.TEXT_MAIN)])
-        self.style.configure("TCheckbutton", background=self.CARD_BG, foreground=self.TEXT_MAIN, font=("Segoe UI", 9.5))
+        self.style.configure("TCheckbutton", background=self.CARD_BG, foreground=self.TEXT_MAIN, font=("Segoe UI", 9))
         self.style.map("TCheckbutton", background=[("active", self.CARD_BG)])
 
-        # Establecer icono oficial de la ventana
+        # Icono
         ico_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.ico")
         if os.path.exists(ico_path):
             try:
@@ -106,10 +110,10 @@ class BandurriaTranscriberGUI:
         if os.path.exists(logo_path):
             try:
                 img = Image.open(logo_path)
-                img = img.resize((60, 60), Image.Resampling.LANCZOS)
+                img = img.resize((55, 55), Image.Resampling.LANCZOS)
                 self.logo_img = ImageTk.PhotoImage(img)
                 lbl_logo = ttk.Label(header_frame, image=self.logo_img)
-                lbl_logo.pack(side="left", padx=(0, 14))
+                lbl_logo.pack(side="left", padx=(0, 12))
                 self.root.iconphoto(True, self.logo_img)
             except Exception:
                 pass
@@ -117,178 +121,229 @@ class BandurriaTranscriberGUI:
         text_frame = ttk.Frame(header_frame)
         text_frame.pack(side="left", fill="both", expand=True)
 
-        lbl_title = ttk.Label(text_frame, text="🪕 Transcriptor de Bandurria a MIDI", style="Header.TLabel")
+        lbl_title = ttk.Label(text_frame, text="🪕 Transcriptor de Melodías de Bandurria a MIDI", style="Header.TLabel")
         lbl_title.pack(anchor="w")
-        lbl_subtitle = ttk.Label(text_frame, text="Convierte fácilmente tu audio, vídeo o tablatura a partitura limpia en sonido Piano para MuseScore.")
+        lbl_subtitle = ttk.Label(text_frame, text="Convierte tu audio, vídeo o tablatura a partitura limpia en sonido Piano para MuseScore.")
         lbl_subtitle.pack(anchor="w", pady=(2, 0))
 
-        # Main Container
+        # Main Container (Un Solo Cuerpo Sin Pestañas)
         main_container = ttk.Frame(root, padding=(20, 0, 20, 15))
         main_container.pack(fill="both", expand=True)
 
-        # Tabs (Notebook): Modo 1 (Audio / Vídeo) | Modo 2 (Tablatura Directa)
-        self.notebook = ttk.Notebook(main_container)
-        self.notebook.pack(fill="x", pady=(0, 10))
+        # Card Principal: Selección de Modo y Parámetros
+        card_main = ttk.Frame(main_container, style="Card.TFrame", padding=15)
+        card_main.pack(fill="x", pady=(0, 10))
 
-        # Tab 1: Transcripción de Audio / Vídeo
-        self.tab_audio = ttk.Frame(self.notebook, style="Card.TFrame", padding=15)
-        self.notebook.add(self.tab_audio, text=" 🎙️ Desde Audio / Vídeo ")
+        # Desplegable Único de Modo / Algoritmo
+        lbl_mode = ttk.Label(card_main, text="Modo / Algoritmo de Transcripción:", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
+        lbl_mode.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
 
-        lbl_input = ttk.Label(self.tab_audio, text="Archivo de Audio o Vídeo (.mp4, .mp3, .wav, .m4a):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
+        self.mode_options = [
+            "🤖 IA de Spotify (Basic Pitch - Red Neuronal Recomendada)",
+            "🌱 Con Nota Semilla (Seguimiento de Melodía por Intervalos)",
+            "📝 Desde Tablatura (Texto)",
+            "🎯 Análisis por Síntesis (Cotejo Espectral Armónico)",
+            "⚡ PyIN (Estándar)"
+        ]
+        
+        self.combo_mode = ttk.Combobox(card_main, values=self.mode_options, state="readonly", width=52, font=("Segoe UI", 9), style="TCombobox")
+        self.combo_mode.current(0)
+        self.combo_mode.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        self.combo_mode.bind("<<ComboboxSelected>>", self.on_mode_changed)
+
+        # -------------------------------------------------------------
+        # Panel Dinámico 1: Archivo de Entrada Audio / Vídeo
+        # -------------------------------------------------------------
+        self.frame_audio_file = ttk.Frame(card_main, style="Card.TFrame")
+        self.frame_audio_file.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+
+        lbl_input = ttk.Label(self.frame_audio_file, text="Archivo de Audio o Vídeo (.mp4, .mp3, .wav, .m4a):", style="Card.TLabel", font=("Segoe UI", 9, "bold"))
         lbl_input.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
-        
-        self.entry_input = tk.Entry(self.tab_audio, font=("Segoe UI", 10), bg="#ffffff", fg="#0f172a", insertbackground="#0f172a", relief="flat", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5")
-        self.entry_input.grid(row=1, column=0, sticky="ew", padx=(0, 8), ipady=4)
-        
-        btn_browse_in = ttk.Button(self.tab_audio, text="Examinar...", style="Secondary.TButton", command=self.browse_input)
+
+        self.entry_input = tk.Entry(self.frame_audio_file, font=("Segoe UI", 10), bg="#ffffff", fg="#0f172a", insertbackground="#0f172a", relief="flat", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5")
+        self.entry_input.grid(row=1, column=0, sticky="ew", padx=(0, 8), ipady=3)
+
+        btn_browse_in = ttk.Button(self.frame_audio_file, text="Examinar...", style="Secondary.TButton", command=self.browse_input)
         btn_browse_in.grid(row=1, column=1, sticky="e")
-        
-        lbl_output = ttk.Label(self.tab_audio, text="Archivo MIDI de Salida (.mid):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
-        lbl_output.grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 4))
-        
-        self.entry_output = tk.Entry(self.tab_audio, font=("Segoe UI", 10), bg="#ffffff", fg="#0f172a", insertbackground="#0f172a", relief="flat", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5")
-        self.entry_output.grid(row=3, column=0, sticky="ew", padx=(0, 8), ipady=4)
-        
-        btn_browse_out = ttk.Button(self.tab_audio, text="Guardar en...", style="Secondary.TButton", command=self.browse_output)
-        btn_browse_out.grid(row=3, column=1, sticky="e")
-        
-        self.tab_audio.columnconfigure(0, weight=1)
+        self.frame_audio_file.columnconfigure(0, weight=1)
 
-        # Cargar última ruta guardada en config.json (o por defecto si no existe)
-        cfg = load_config()
-        last_in = cfg.get("last_input_path")
-        last_out = cfg.get("last_output_path")
-        
-        if last_in and os.path.exists(last_in):
-            default_in = last_in
-        else:
-            default_in = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Las palmeras\26-07-2026 12.14(2).m4a"
-            if not os.path.exists(default_in):
-                default_in = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria2.mp4"
-                
-        self.entry_input.insert(0, default_in)
-        
-        if last_out:
-            default_out = last_out
-        else:
-            base, _ = os.path.splitext(default_in)
-            default_out = base + ".mid"
-            
-        self.entry_output.insert(0, default_out)
+        # -------------------------------------------------------------
+        # Panel Dinámico 2: Selección de Nota Semilla (Único Combo)
+        # -------------------------------------------------------------
+        self.frame_seed = ttk.Frame(card_main, style="Card.TFrame")
+        self.frame_seed.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 6))
 
-        # Tab 2: Convertidor de Tablatura Directa
-        self.tab_text = ttk.Frame(self.notebook, style="Card.TFrame", padding=15)
-        self.notebook.add(self.tab_text, text=" 📝 Desde Tablatura (Texto) ")
+        lbl_seed = ttk.Label(self.frame_seed, text="Nota Semilla Inicial (Cifrado + Nota):", style="Card.TLabel", font=("Segoe UI", 9, "bold"))
+        lbl_seed.grid(row=0, column=0, sticky="w", padx=(0, 8))
 
-        lbl_tab_text = ttk.Label(self.tab_text, text="Pega la secuencia de tablatura (ej: 17-14-15-17-15-14-12-10-12-15-14-22...):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
+        self.seed_options = [f"Cifrado {item['cifrado']}  —  {item['note_es']} ({item['description']})" for item in seed_tracking.BANDURRIA_TAB_MAP]
+        self.combo_seed_cifrado = ttk.Combobox(self.frame_seed, values=self.seed_options, state="readonly", width=46, font=("Segoe UI", 9), style="TCombobox")
+        
+        default_idx = next((i for i, item in enumerate(seed_tracking.BANDURRIA_TAB_MAP) if item['cifrado'] == '17'), 7)
+        self.combo_seed_cifrado.current(default_idx)
+        self.combo_seed_cifrado.grid(row=0, column=1, sticky="w")
+
+        # -------------------------------------------------------------
+        # Panel Dinámico 3: Secuencia de Tablatura (Texto)
+        # -------------------------------------------------------------
+        self.frame_tab_text = ttk.Frame(card_main, style="Card.TFrame")
+        self.frame_tab_text.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+
+        lbl_tab_text = ttk.Label(self.frame_tab_text, text="Pega la secuencia de tablatura (ej: 17-14-15-17-15-14-12-10...):", style="Card.TLabel", font=("Segoe UI", 9, "bold"))
         lbl_tab_text.pack(anchor="w", pady=(0, 4))
 
-        self.txt_tab_input = tk.Text(self.tab_text, height=5, bg="#ffffff", fg="#0f172a", font=("Consolas", 10), relief="flat", insertbackground="#0f172a", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5")
-        self.txt_tab_input.pack(fill="x", pady=(0, 6))
+        self.txt_tab_input = tk.Text(self.frame_tab_text, height=4, bg="#ffffff", fg="#0f172a", font=("Consolas", 10), relief="flat", insertbackground="#0f172a", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5")
+        self.txt_tab_input.pack(fill="x", pady=(0, 4))
 
         default_tab_text = """17-14-15-17-15-14-12-10-12-15-14-22
 10-21-23-10-12-14-17-14
 20-22-24-10-24-22-20
 20-22-24-10-24-22-20
 22-24-10-12-10
-20-10-24-23-22-21-23-21-20
-10-24-23-24-10-17-14-10-20-17-13
-10-24-23-22-21-21-21-21-23-10-
-21-20-"""
+20-10-24-23-22-21-23-21-20"""
         self.txt_tab_input.insert(tk.END, default_tab_text.strip())
 
-        # Card de Opciones de Cuantización
-        card_opts = ttk.Frame(main_container, style="Card.TFrame", padding=15)
-        card_opts.pack(fill="x", pady=(0, 12))
-        
-        lbl_opts = ttk.Label(card_opts, text="Ajustes de Cuantización Rítmica (MuseScore):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
-        lbl_opts.grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
-        
+        # -------------------------------------------------------------
+        # Archivo MIDI de Salida
+        # -------------------------------------------------------------
+        lbl_output = ttk.Label(card_main, text="Archivo MIDI de Salida (.mid):", style="Card.TLabel", font=("Segoe UI", 9, "bold"))
+        lbl_output.grid(row=5, column=0, columnspan=2, sticky="w", pady=(4, 4))
+
+        frame_out_row = ttk.Frame(card_main, style="Card.TFrame")
+        frame_out_row.grid(row=6, column=0, columnspan=2, sticky="ew")
+
+        self.entry_output = tk.Entry(frame_out_row, font=("Segoe UI", 10), bg="#ffffff", fg="#0f172a", insertbackground="#0f172a", relief="flat", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5")
+        self.entry_output.pack(side="left", fill="x", expand=True, padx=(0, 8), ipady=3)
+
+        btn_browse_out = ttk.Button(frame_out_row, text="Guardar en...", style="Secondary.TButton", command=self.browse_output)
+        btn_browse_out.pack(side="right")
+
+        # Cargar última ruta en config.json
+        cfg = load_config()
+        last_in = cfg.get("last_input_path")
+        last_out = cfg.get("last_output_path")
+
+        local_outputs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs")
+        os.makedirs(local_outputs_dir, exist_ok=True)
+
+        if last_in and os.path.exists(last_in):
+            default_in = last_in
+        else:
+            default_in = r"G:\Mi unidad\AYo\Tuna\Canciones Tuna\Noche madrileña\Noche madrileña bandurria2.mp4"
+            
+        self.entry_input.insert(0, default_in)
+
+        base_name = os.path.basename(os.path.splitext(default_in)[0])
+        default_out = os.path.join(local_outputs_dir, f"{base_name}.mid")
+
+        if last_out and os.path.exists(os.path.dirname(last_out)):
+            # Si la ruta guardada es válida la usamos, si era una ruta problemática a Google Drive redirigimos a outputs local
+            if "G:" in last_out or not os.path.exists(os.path.dirname(last_out)):
+                default_out = os.path.join(local_outputs_dir, f"{base_name}.mid")
+            else:
+                default_out = last_out
+
+        self.entry_output.insert(0, default_out)
+
+        # -------------------------------------------------------------
+        # Card de Opciones de Cuantización Rítmica y Puerta de Ruido
+        # -------------------------------------------------------------
+        card_opts = ttk.Frame(main_container, style="Card.TFrame", padding=12)
+        card_opts.pack(fill="x", pady=(0, 10))
+
+        lbl_opts = ttk.Label(card_opts, text="Ajustes Rítmicos y Puerta de Ruido:", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
+        lbl_opts.grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
+
         self.var_auto_bpm = tk.BooleanVar(value=True)
-        chk_auto = ttk.Checkbutton(card_opts, text="⚡ Estimar Tempo (BPM) automáticamente de la canción", variable=self.var_auto_bpm, style="TCheckbutton", command=self.toggle_bpm_state)
-        chk_auto.grid(row=1, column=0, columnspan=4, sticky="w", pady=(0, 8))
-        
-        lbl_bpm = ttk.Label(card_opts, text="Tempo Manual (BPM):", style="Card.TLabel")
-        lbl_bpm.grid(row=2, column=0, sticky="w", padx=(0, 8))
-        
-        self.spin_bpm = tk.Spinbox(card_opts, from_=40, to=240, width=8, font=("Segoe UI", 10), bg="#f1f5f9", fg="#94a3b8", insertbackground="#0f172a", buttonbackground="#e2e8f0", relief="flat", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5", state="disabled")
+        chk_auto = ttk.Checkbutton(card_opts, text="⚡ Estimar Tempo (BPM) automáticamente", variable=self.var_auto_bpm, style="TCheckbutton", command=self.toggle_bpm_state)
+        chk_auto.grid(row=1, column=0, columnspan=4, sticky="w", pady=(0, 6))
+
+        lbl_bpm = ttk.Label(card_opts, text="Tempo (BPM):", style="Card.TLabel")
+        lbl_bpm.grid(row=2, column=0, sticky="w", padx=(0, 6))
+
+        self.spin_bpm = tk.Spinbox(card_opts, from_=40, to=240, width=6, font=("Segoe UI", 9), bg="#f1f5f9", fg="#94a3b8", insertbackground="#0f172a", buttonbackground="#e2e8f0", relief="flat", highlightthickness=1, highlightbackground="#cbd5e1", highlightcolor="#4f46e5", state="disabled")
         self.spin_bpm.delete(0, tk.END)
         self.spin_bpm.insert(0, "120")
-        self.spin_bpm.grid(row=2, column=1, sticky="w", padx=(0, 24))
-        
-        lbl_subdiv = ttk.Label(card_opts, text="Subdivisión Rítmica:", style="Card.TLabel")
-        lbl_subdiv.grid(row=2, column=2, sticky="w", padx=(0, 8))
-        
-        self.combo_subdiv = ttk.Combobox(card_opts, values=["1/16 (Semicorcheas)", "1/8 (Corcheas)", "1/4 (Negras)"], state="readonly", width=22, font=("Segoe UI", 9), style="TCombobox")
+        self.spin_bpm.grid(row=2, column=1, sticky="w", padx=(0, 16))
+
+        lbl_subdiv = ttk.Label(card_opts, text="Subdivisión:", style="Card.TLabel")
+        lbl_subdiv.grid(row=2, column=2, sticky="w", padx=(0, 6))
+
+        self.combo_subdiv = ttk.Combobox(card_opts, values=["1/16 (Semicorcheas)", "1/8 (Corcheas)", "1/4 (Negras)"], state="readonly", width=20, font=("Segoe UI", 9), style="TCombobox")
         self.combo_subdiv.current(0)
         self.combo_subdiv.grid(row=2, column=3, sticky="w")
 
-        # Umbral de Puerta de Ruido (Noise Gate)
-        lbl_gate_header = ttk.Label(card_opts, text="Puerta de Ruido (Noise Gate):", style="Card.TLabel", font=("Segoe UI", 10, "bold"))
-        lbl_gate_header.grid(row=3, column=0, columnspan=4, sticky="w", pady=(12, 4))
-
+        # Puerta de Ruido
         self.var_auto_gate = tk.BooleanVar(value=True)
-        self.chk_auto_gate = ttk.Checkbutton(card_opts, text="⚙️ Estimar umbral de ruido automáticamente", variable=self.var_auto_gate, style="TCheckbutton", command=self.toggle_gate_state)
-        self.chk_auto_gate.grid(row=4, column=0, columnspan=4, sticky="w", pady=(0, 4))
+        self.chk_auto_gate = ttk.Checkbutton(card_opts, text="⚙️ Puerta de ruido automática", variable=self.var_auto_gate, style="TCheckbutton", command=self.toggle_gate_state)
+        self.chk_auto_gate.grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 4))
 
-        lbl_gate_val = ttk.Label(card_opts, text="Umbral Manual (RMS):", style="Card.TLabel")
-        lbl_gate_val.grid(row=5, column=0, sticky="w", padx=(0, 8))
+        lbl_gate_val = ttk.Label(card_opts, text="Umbral (RMS):", style="Card.TLabel")
+        lbl_gate_val.grid(row=4, column=0, sticky="w", padx=(0, 6))
 
-        self.scale_gate = tk.Scale(
-            card_opts, 
-            from_=0.005, 
-            to=0.050, 
-            resolution=0.001, 
-            orient="horizontal", 
-            bg=self.CARD_BG, 
-            fg=self.TEXT_MUTED, 
-            troughcolor=self.BG_COLOR, 
-            activebackground=self.ACCENT_PRIMARY, 
-            highlightthickness=0, 
-            showvalue=True, 
-            state="disabled", 
-            length=220
-        )
+        self.scale_gate = tk.Scale(card_opts, from_=0.005, to=0.050, resolution=0.001, orient="horizontal", bg=self.CARD_BG, fg=self.TEXT_MUTED, troughcolor=self.BG_COLOR, activebackground=self.ACCENT_PRIMARY, highlightthickness=0, showvalue=True, state="disabled", length=180)
         self.scale_gate.set(0.015)
-        self.scale_gate.grid(row=5, column=1, columnspan=3, sticky="w")
+        self.scale_gate.grid(row=4, column=1, columnspan=3, sticky="w")
 
+        # -------------------------------------------------------------
         # Barra de Progreso y Consola de Log
+        # -------------------------------------------------------------
         self.progress_var = tk.DoubleVar()
         self.progressbar = ttk.Progressbar(main_container, variable=self.progress_var, maximum=100)
-        self.progressbar.pack(fill="x", pady=(0, 8))
-        
-        # Log Console Box
+        self.progressbar.pack(fill="x", pady=(0, 6))
+
         log_frame = ttk.Frame(main_container)
-        log_frame.pack(fill="both", expand=True, pady=(0, 12))
-        
-        self.txt_log = tk.Text(log_frame, height=7, bg="#1e293b", fg="#f8fafc", font=("Consolas", 9), relief="flat", wrap="word", insertbackground="#ffffff")
+        log_frame.pack(fill="both", expand=True, pady=(0, 10))
+
+        self.txt_log = tk.Text(log_frame, height=4, bg="#1e293b", fg="#f8fafc", font=("Consolas", 9), relief="flat", wrap="word", insertbackground="#ffffff")
         self.txt_log.pack(side="left", fill="both", expand=True)
-        
+
         scrollbar = ttk.Scrollbar(log_frame, command=self.txt_log.yview)
         scrollbar.pack(side="right", fill="y")
         self.txt_log.config(yscrollcommand=scrollbar.set)
-        
-        # Frame de Acción
+
+        # -------------------------------------------------------------
+        # Frame de Acción Final
+        # -------------------------------------------------------------
         action_frame = ttk.Frame(main_container)
         action_frame.pack(fill="x")
 
         self.btn_convert = ttk.Button(action_frame, text="🎵 CONVERTIR Y TRANSCRIBIR A MIDI", style="Primary.TButton", command=self.start_transcription_thread)
-        self.btn_convert.pack(fill="x", ipady=8)
+        self.btn_convert.pack(fill="x", ipady=7)
 
-        # Frame de botones visibles en todo momento (Abrir Carpeta / Abrir MIDI / Abrir MuseScore)
         self.post_frame = ttk.Frame(action_frame)
-        self.post_frame.pack(fill="x", pady=(10, 0))
-        
+        self.post_frame.pack(fill="x", pady=(8, 0))
+
         self.btn_open_folder = ttk.Button(self.post_frame, text="📂 Abrir Carpeta", style="Secondary.TButton", command=self.open_output_folder)
         self.btn_open_folder.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        
+
         self.btn_open_midi = ttk.Button(self.post_frame, text="🎹 Abrir MIDI", style="Secondary.TButton", command=self.open_midi_file)
         self.btn_open_midi.pack(side="left", fill="x", expand=True, padx=(2, 4))
-        
+
         self.btn_open_musescore = ttk.Button(self.post_frame, text="🎼 Abrir en MuseScore", style="Secondary.TButton", command=self.open_in_musescore)
         self.btn_open_musescore.pack(side="left", fill="x", expand=True, padx=(2, 0))
-        
+
         self.last_midi_output = default_out
+        
+        # Inicializar visibilidad contextual según el modo por defecto
+        self.on_mode_changed()
+
+    def on_mode_changed(self, event=None):
+        mode_text = self.combo_mode.get()
+        
+        if "Tablatura" in mode_text:
+            self.frame_audio_file.grid_remove()
+            self.frame_seed.grid_remove()
+            self.frame_tab_text.grid()
+        elif "Semilla" in mode_text:
+            self.frame_audio_file.grid()
+            self.frame_seed.grid()
+            self.frame_tab_text.grid_remove()
+        else:
+            # Modos Audio/Vídeo estándar (Spotify AI, PyIN, Spectral)
+            self.frame_audio_file.grid()
+            self.frame_seed.grid_remove()
+            self.frame_tab_text.grid_remove()
 
     def log(self, message):
         def _update():
@@ -305,9 +360,13 @@ class BandurriaTranscriberGUI:
             self.entry_input.delete(0, tk.END)
             self.entry_input.insert(0, filename)
             
-            base, _ = os.path.splitext(filename)
-            raw_out = base + ".mid"
+            base_name = os.path.basename(os.path.splitext(filename)[0])
+            local_outputs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs")
+            os.makedirs(local_outputs_dir, exist_ok=True)
+            
+            raw_out = os.path.join(local_outputs_dir, f"{base_name}.mid")
             out_path = get_unique_midi_path(raw_out)
+            
             self.entry_output.delete(0, tk.END)
             self.entry_output.insert(0, out_path)
             self.last_midi_output = out_path
@@ -338,10 +397,9 @@ class BandurriaTranscriberGUI:
             self.scale_gate.config(state="normal", fg=self.TEXT_MAIN)
 
     def start_transcription_thread(self):
-        selected_tab = self.notebook.index(self.notebook.select())
-        
-        if selected_tab == 1:
-            # Modo 2: Convertir desde Tablatura (Texto)
+        mode_text = self.combo_mode.get()
+
+        if "Tablatura" in mode_text:
             tab_text = self.txt_tab_input.get(1.0, tk.END).strip()
             if not tab_text:
                 messagebox.showerror("Error de Tablatura", "Por favor pega la secuencia de tablatura de la canción.")
@@ -375,7 +433,7 @@ class BandurriaTranscriberGUI:
                 messagebox.showerror("Error", f"No se pudo procesar la tablatura:\n{str(e)}")
             return
 
-        # Modo 1: Transcripción desde Audio / Vídeo
+        # Modos de Audio / Vídeo
         audio_path = self.entry_input.get().strip()
         midi_path = self.entry_output.get().strip()
                 
@@ -388,8 +446,12 @@ class BandurriaTranscriberGUI:
             return
             
         midi_path = get_unique_midi_path(midi_path)
+        midi_path = os.path.abspath(os.path.normpath(midi_path))
+        os.makedirs(os.path.dirname(midi_path), exist_ok=True)
+        
         self.entry_output.delete(0, tk.END)
         self.entry_output.insert(0, midi_path)
+        self.last_midi_output = midi_path
 
         save_config({"last_input_path": audio_path, "last_output_path": midi_path})
 
@@ -408,14 +470,7 @@ class BandurriaTranscriberGUI:
             subdiv = 4
         else:
             subdiv = 16
-            
-        self.btn_convert.config(state="disabled")
-        self.progress_var.set(10)
-        self.txt_log.delete(1.0, tk.END)
-        self.log("▶ Iniciando transcripción de Bandurria (Sonido Piano)...")
-        
-        self.last_midi_output = midi_path
-        
+
         if self.var_auto_gate.get():
             gate_val = "auto"
         else:
@@ -423,106 +478,132 @@ class BandurriaTranscriberGUI:
                 gate_val = float(self.scale_gate.get())
             except ValueError:
                 gate_val = 0.015
-        
-        thread = threading.Thread(target=self.run_transcription, args=(audio_path, midi_path, bpm, subdiv, gate_val), daemon=True)
+
+        # Seleccionar Algoritmo
+        if "Spotify" in mode_text or "Basic Pitch" in mode_text:
+            algo = "spotify_ai"
+        elif "Semilla" in mode_text:
+            algo = "seed"
+        elif "Síntesis" in mode_text or "Cotejo" in mode_text:
+            algo = "spectral"
+        else:
+            algo = "pyin"
+
+        # Obtener seed_midi
+        seed_idx = self.combo_seed_cifrado.current()
+        if seed_idx < 0 or seed_idx >= len(seed_tracking.BANDURRIA_TAB_MAP):
+            seed_idx = 7
+        seed_midi = seed_tracking.BANDURRIA_TAB_MAP[seed_idx]['midi']
+
+        self.btn_convert.config(state="disabled")
+        self.progress_var.set(10)
+        self.txt_log.delete(1.0, tk.END)
+        self.log(f"▶ Iniciando transcripción de Bandurria con el algoritmo: {mode_text}...")
+
+        thread = threading.Thread(target=self.run_transcription, args=(audio_path, midi_path, bpm, subdiv, gate_val, algo, seed_midi), daemon=True)
         thread.start()
 
-    def run_transcription(self, audio_path, midi_path, bpm, subdiv, gate_val):
+    def run_transcription(self, audio_path, midi_path, bpm, subdiv, gate_val, algorithm="spotify_ai", seed_midi=76):
         try:
             def callback(msg):
                 self.log(msg)
-                if "Audio cargado" in msg:
+                if "Cargando" in msg or "Audio cargado" in msg:
                     self.root.after(0, lambda: self.progress_var.set(30))
-                elif "Segmentando" in msg:
+                elif "Predicción" in msg or "Calculando" in msg:
                     self.root.after(0, lambda: self.progress_var.set(50))
                 elif "Unificando" in msg:
                     self.root.after(0, lambda: self.progress_var.set(70))
                 elif "Cuantizando" in msg:
                     self.root.after(0, lambda: self.progress_var.set(90))
-                elif "Éxito" in msg:
+                elif "Éxito" in msg or "Evaluación Completada" in msg:
                     self.root.after(0, lambda: self.progress_var.set(100))
 
-            transcribe_audio_to_midi(
+            accuracy_pct = transcribe_audio_to_midi(
                 audio_path=audio_path,
                 midi_path=midi_path,
                 bpm=bpm,
                 subdivision=subdiv,
                 rms_threshold=gate_val,
+                algorithm=algorithm,
+                seed_midi=seed_midi,
                 log_callback=callback
             )
             
-            self.root.after(0, lambda: self.on_transcription_success(midi_path))
+            self.root.after(0, lambda: self.on_transcription_success(midi_path, accuracy_pct))
         except Exception as e:
             self.log(f"\n❌ Error durante la transcripción: {str(e)}")
             self.root.after(0, lambda: messagebox.showerror("Error de Transcripción", f"Ocurrió un error:\n{str(e)}"))
         finally:
             self.root.after(0, lambda: self.btn_convert.config(state="normal"))
 
-    def on_transcription_success(self, midi_path):
+    def on_transcription_success(self, midi_path, accuracy_pct=None):
+        midi_path = os.path.abspath(os.path.normpath(midi_path))
+        self.last_midi_output = midi_path
+        self.entry_output.delete(0, tk.END)
+        self.entry_output.insert(0, midi_path)
+        
         save_config({
             "last_input_path": self.entry_input.get().strip(),
             "last_output_path": midi_path
         })
-        messagebox.showinfo("¡Transcripción Completada!", f"¡Archivo MIDI generado con éxito!\n\nRuta: {midi_path}\n\nPuedes hacer clic en 'Abrir MIDI' o 'Abrir en MuseScore' para escuchar tu partitura.")
+        acc_text = f"\n🎯 Porcentaje de Acierto Melódico: {accuracy_pct}%\n" if accuracy_pct is not None else ""
+        messagebox.showinfo(
+            "¡Transcripción Completada!", 
+            f"¡Archivo MIDI y MusicXML generados con éxito!{acc_text}\nRuta: {midi_path}\n\nPuedes hacer clic en 'Abrir Carpeta', 'Abrir MIDI' o 'Abrir en MuseScore'."
+        )
 
     def open_output_folder(self):
         midi_path = self.last_midi_output or self.entry_output.get().strip()
-        if midi_path and os.path.exists(os.path.dirname(midi_path)):
-            folder = os.path.dirname(midi_path)
-            subprocess.run(["explorer", folder])
+        if midi_path:
+            abs_path = os.path.abspath(os.path.normpath(midi_path))
+            folder = os.path.dirname(abs_path)
+            if os.path.exists(abs_path):
+                subprocess.Popen(f'explorer /select,"{abs_path}"')
+            elif os.path.exists(folder):
+                subprocess.Popen(f'explorer "{folder}"')
+            else:
+                messagebox.showerror("Error", f"La carpeta de destino no existe:\n{folder}")
         else:
-            messagebox.showwarning("Aviso", "No se encontró la carpeta del archivo MIDI.")
+            messagebox.showerror("Error", "No hay ningún archivo seleccionado.")
 
     def open_midi_file(self):
         midi_path = self.last_midi_output or self.entry_output.get().strip()
-        if not midi_path or not os.path.exists(midi_path):
-            messagebox.showwarning("Aviso", f"El archivo MIDI no existe aún en el disco:\n'{midi_path}'\n\nPor favor, ejecuta primero la conversión.")
-            return
-        try:
-            os.startfile(midi_path)
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo abrir el archivo MIDI:\n{str(e)}")
+        if midi_path:
+            abs_path = os.path.abspath(os.path.normpath(midi_path))
+            if os.path.exists(abs_path):
+                os.startfile(abs_path)
+                return
+        messagebox.showerror("Error", f"El archivo MIDI no existe en el disco:\n{midi_path}")
 
     def open_in_musescore(self):
         midi_path = self.last_midi_output or self.entry_output.get().strip()
         if not midi_path:
-            messagebox.showwarning("Aviso", "Por favor, ejecuta primero la conversión.")
+            messagebox.showerror("Error", "No hay ningún archivo generado disponible.")
             return
-            
-        base_path, _ = os.path.splitext(midi_path)
+
+        abs_midi = os.path.abspath(os.path.normpath(midi_path))
+        base_path, _ = os.path.splitext(abs_midi)
         musicxml_path = base_path + ".musicxml"
-        
-        target_file = musicxml_path if os.path.exists(musicxml_path) else midi_path
+
+        target_file = musicxml_path if os.path.exists(musicxml_path) else abs_midi
         if not os.path.exists(target_file):
-            messagebox.showwarning("Aviso", f"El archivo de partitura no existe aún en el disco:\n'{target_file}'\n\nPor favor, ejecuta primero la conversión.")
+            messagebox.showerror("Error", f"El archivo no existe en el disco:\n{target_file}")
             return
-            
-        possible_paths = [
-            r"C:\Program Files\MuseScore 4\bin\MuseScore4.exe",
-            r"C:\Program Files\MuseScore 3\bin\MuseScore3.exe",
-            r"C:\Program Files (x86)\MuseScore 3\bin\MuseScore3.exe",
-        ]
-        musescore_exe = None
-        for path in possible_paths:
-            if os.path.exists(path):
-                musescore_exe = path
-                break
-                
-        try:
-            if musescore_exe:
-                subprocess.Popen([musescore_exe, target_file])
-            else:
-                os.startfile(target_file)
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo abrir MuseScore automáticamente:\n{str(e)}")
+
+        musescore_path = r"C:\Program Files\MuseScore 4\bin\MuseScore4.exe"
+        if not os.path.exists(musescore_path):
+            musescore_path = r"C:\Program Files\MuseScore 3\bin\MuseScore3.exe"
+
+        if os.path.exists(musescore_path):
+            self.log(f"🎼 Abriendo '{os.path.basename(target_file)}' en MuseScore...")
+            subprocess.Popen([musescore_path, target_file])
+        else:
+            self.log("Aviso: MuseScore 4 no se encontró en la ruta estándar. Abriendo con la aplicación por defecto de Windows...")
+            os.startfile(target_file)
 
 def launch_gui():
     root = tk.Tk()
     app = BandurriaTranscriberGUI(root)
-    root.lift()
-    root.attributes('-topmost', True)
-    root.after(100, lambda: root.attributes('-topmost', False))
-    root.focus_force()
     root.mainloop()
 
 if __name__ == "__main__":
