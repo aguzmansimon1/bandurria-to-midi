@@ -328,17 +328,22 @@ class BandurriaTranscriberGUI:
         self.post_frame = ttk.Frame(action_frame)
         self.post_frame.pack(fill="x", pady=(8, 0))
 
-        self.btn_open_folder = ttk.Button(self.post_frame, text="📂 Abrir Carpeta", style="Secondary.TButton", command=self.open_output_folder)
-        self.btn_open_folder.pack(side="left", fill="x", expand=True, padx=(0, 2))
+        self.post_frame.columnconfigure(0, weight=1, uniform="post_btn")
+        self.post_frame.columnconfigure(1, weight=1, uniform="post_btn")
+        self.post_frame.columnconfigure(2, weight=1, uniform="post_btn")
+        self.post_frame.columnconfigure(3, weight=1, uniform="post_btn")
 
-        self.btn_open_txt = ttk.Button(self.post_frame, text="📜 Abrir Cifrado TXT", style="Secondary.TButton", command=self.open_cifrado_txt)
-        self.btn_open_txt.pack(side="left", fill="x", expand=True, padx=(2, 2))
+        self.btn_open_folder = ttk.Button(self.post_frame, text="📂 Abrir Carpeta", style="Secondary.TButton", command=self.open_output_folder)
+        self.btn_open_folder.grid(row=0, column=0, sticky="ew", padx=(0, 3), ipady=5)
+
+        self.btn_open_txt = ttk.Button(self.post_frame, text="📜 Cifrado TXT", style="Secondary.TButton", command=self.open_cifrado_txt)
+        self.btn_open_txt.grid(row=0, column=1, sticky="ew", padx=3, ipady=5)
 
         self.btn_open_midi = ttk.Button(self.post_frame, text="🎹 Abrir MIDI", style="Secondary.TButton", command=self.open_midi_file)
-        self.btn_open_midi.pack(side="left", fill="x", expand=True, padx=(2, 2))
+        self.btn_open_midi.grid(row=0, column=2, sticky="ew", padx=3, ipady=5)
 
-        self.btn_open_musescore = ttk.Button(self.post_frame, text="🎼 Abrir en MuseScore", style="Secondary.TButton", command=self.open_in_musescore)
-        self.btn_open_musescore.pack(side="left", fill="x", expand=True, padx=(2, 0))
+        self.btn_open_musescore = ttk.Button(self.post_frame, text="🎼 MuseScore 4", style="Secondary.TButton", command=self.open_in_musescore)
+        self.btn_open_musescore.grid(row=0, column=3, sticky="ew", padx=(3, 0), ipady=5)
 
         self.last_midi_output = default_out
         
