@@ -89,6 +89,10 @@ class BandurriaTranscriberGUI:
         self.style.map("Primary.TButton", background=[("active", "#4338ca")])
         self.style.configure("Secondary.TButton", font=("Segoe UI", 9, "bold"), background="#e2e8f0", foreground="#1e293b")
         self.style.map("Secondary.TButton", background=[("active", "#cbd5e1")])
+        self.style.configure("Danger.TButton", font=("Segoe UI", 10, "bold"), background="#ef4444", foreground="#ffffff")
+        self.style.map("Danger.TButton", background=[("active", "#dc2626"), ("disabled", "#e2e8f0")], foreground=[("disabled", "#94a3b8")])
+        
+        self.cancel_event = threading.Event()
         
         self.style.configure("TCombobox", fieldbackground="#ffffff", background="#e2e8f0", foreground=self.TEXT_MAIN, arrowcolor=self.TEXT_MAIN, selectbackground=self.ACCENT_PRIMARY, selectforeground="#ffffff")
         self.style.map("TCombobox", fieldbackground=[("readonly", "#ffffff")], foreground=[("readonly", self.TEXT_MAIN)])
@@ -287,11 +291,17 @@ class BandurriaTranscriberGUI:
         self.scale_gate.grid(row=4, column=1, columnspan=3, sticky="w")
 
         # -------------------------------------------------------------
-        # Barra de Progreso y Consola de Log
+        # Barra de Progreso (%) y Consola de Log
         # -------------------------------------------------------------
-        self.progress_var = tk.DoubleVar()
-        self.progressbar = ttk.Progressbar(main_container, variable=self.progress_var, maximum=100)
-        self.progressbar.pack(fill="x", pady=(0, 6))
+        progress_frame = ttk.Frame(main_container)
+        progress_frame.pack(fill="x", pady=(0, 6))
+
+        self.progress_var = tk.DoubleVar(value=0.0)
+        self.progressbar = ttk.Progressbar(progress_frame, variable=self.progress_var, maximum=100)
+        self.progressbar.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        self.lbl_progress_pct = ttk.Label(progress_frame, text="0%", font=("Segoe UI", 10, "bold"), foreground=self.ACCENT_PRIMARY)
+        self.lbl_progress_pct.pack(side="right")
 
         log_frame = ttk.Frame(main_container)
         log_frame.pack(fill="both", expand=True, pady=(0, 10))
@@ -304,13 +314,16 @@ class BandurriaTranscriberGUI:
         self.txt_log.config(yscrollcommand=scrollbar.set)
 
         # -------------------------------------------------------------
-        # Frame de Acción Final
+        # Frame de Acción Final (Convertir / Detener)
         # -------------------------------------------------------------
         action_frame = ttk.Frame(main_container)
         action_frame.pack(fill="x")
 
         self.btn_convert = ttk.Button(action_frame, text="🎵 CONVERTIR Y TRANSCRIBIR A MIDI", style="Primary.TButton", command=self.start_transcription_thread)
-        self.btn_convert.pack(fill="x", ipady=7)
+        self.btn_convert.pack(side="left", fill="x", expand=True, ipady=7, padx=(0, 4))
+
+        self.btn_cancel = ttk.Button(action_frame, text="🛑 DETENER", style="Danger.TButton", command=self.cancel_transcription, state="disabled")
+        self.btn_cancel.pack(side="right", ipady=7, padx=(4, 0))
 
         self.post_frame = ttk.Frame(action_frame)
         self.post_frame.pack(fill="x", pady=(8, 0))
@@ -345,6 +358,17 @@ class BandurriaTranscriberGUI:
             self.frame_audio_file.grid()
             self.frame_seed.grid_remove()
             self.frame_tab_text.grid_remove()
+
+    def set_progress(self, val):
+        self.progress_var.set(val)
+        if hasattr(self, 'lbl_progress_pct'):
+            self.lbl_progress_pct.config(text=f"{int(round(val))}%")
+
+    def cancel_transcription(self):
+        if hasattr(self, 'cancel_event'):
+            self.cancel_event.set()
+            self.log("⚠️ Solicitando cancelación del proceso...")
+            self.btn_cancel.config(state="disabled")
 
     def log(self, message):
         def _update():
@@ -420,11 +444,11 @@ class BandurriaTranscriberGUI:
                 
             self.txt_log.delete(1.0, tk.END)
             self.log("▶ Generando partitura MIDI en sonido de Piano desde la tablatura...")
-            self.progress_var.set(50)
+            self.set_progress(50)
             
             try:
                 create_midi_from_tab(tab_text, midi_path, bpm=bpm)
-                self.progress_var.set(100)
+                self.set_progress(100)
                 self.last_midi_output = midi_path
                 self.log(f"¡Éxito! MIDI desde tablatura guardado en: {midi_path}")
                 self.on_transcription_success(midi_path)
@@ -495,8 +519,10 @@ class BandurriaTranscriberGUI:
             seed_idx = 7
         seed_midi = seed_tracking.BANDURRIA_TAB_MAP[seed_idx]['midi']
 
+        self.cancel_event.clear()
         self.btn_convert.config(state="disabled")
-        self.progress_var.set(10)
+        self.btn_cancel.config(state="normal")
+        self.set_progress(10)
         self.txt_log.delete(1.0, tk.END)
         self.log(f"▶ Iniciando transcripción de Bandurria con el algoritmo: {mode_text}...")
 
@@ -506,17 +532,19 @@ class BandurriaTranscriberGUI:
     def run_transcription(self, audio_path, midi_path, bpm, subdiv, gate_val, algorithm="spotify_ai", seed_midi=76):
         try:
             def callback(msg):
+                if self.cancel_event.is_set():
+                    raise InterruptedError("Transcripción cancelada por el usuario.")
                 self.log(msg)
                 if "Cargando" in msg or "Audio cargado" in msg:
-                    self.root.after(0, lambda: self.progress_var.set(30))
+                    self.root.after(0, lambda: self.set_progress(30))
                 elif "Predicción" in msg or "Calculando" in msg:
-                    self.root.after(0, lambda: self.progress_var.set(50))
+                    self.root.after(0, lambda: self.set_progress(50))
                 elif "Unificando" in msg:
-                    self.root.after(0, lambda: self.progress_var.set(70))
+                    self.root.after(0, lambda: self.set_progress(70))
                 elif "Cuantizando" in msg:
-                    self.root.after(0, lambda: self.progress_var.set(90))
+                    self.root.after(0, lambda: self.set_progress(90))
                 elif "Éxito" in msg or "Evaluación Completada" in msg:
-                    self.root.after(0, lambda: self.progress_var.set(100))
+                    self.root.after(0, lambda: self.set_progress(100))
 
             accuracy_pct = transcribe_audio_to_midi(
                 audio_path=audio_path,
@@ -526,15 +554,23 @@ class BandurriaTranscriberGUI:
                 rms_threshold=gate_val,
                 algorithm=algorithm,
                 seed_midi=seed_midi,
-                log_callback=callback
+                log_callback=callback,
+                check_cancel=lambda: self.cancel_event.is_set()
             )
             
-            self.root.after(0, lambda: self.on_transcription_success(midi_path, accuracy_pct))
+            if not self.cancel_event.is_set():
+                self.root.after(0, lambda: self.on_transcription_success(midi_path, accuracy_pct))
         except Exception as e:
-            self.log(f"\n❌ Error durante la transcripción: {str(e)}")
-            self.root.after(0, lambda: messagebox.showerror("Error de Transcripción", f"Ocurrió un error:\n{str(e)}"))
+            if isinstance(e, InterruptedError) or self.cancel_event.is_set():
+                self.log("\n🛑 Transcripción cancelada por el usuario.")
+                self.root.after(0, lambda: self.set_progress(0))
+                self.root.after(0, lambda: messagebox.showwarning("Proceso Detenido", "La conversión ha sido cancelada por el usuario."))
+            else:
+                self.log(f"\n❌ Error durante la transcripción: {str(e)}")
+                self.root.after(0, lambda: messagebox.showerror("Error de Transcripción", f"Ocurrió un error:\n{str(e)}"))
         finally:
             self.root.after(0, lambda: self.btn_convert.config(state="normal"))
+            self.root.after(0, lambda: self.btn_cancel.config(state="disabled"))
 
     def move_files_to_original_dir(self, midi_path, audio_path):
         if not audio_path or not os.path.exists(audio_path):

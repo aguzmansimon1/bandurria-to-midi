@@ -56,12 +56,14 @@ def clean_to_monophonic_melody(notes):
     return mono_notes
 
 def transcribe_with_spotify_ai(audio_path, midi_path, bpm=120, subdivision=16, 
-                               fmin=220, fmax=1400, rms_threshold="auto", log_callback=None):
+                               fmin=220, fmax=1400, rms_threshold="auto", log_callback=None, check_cancel=None):
     """
     Transcribe audio de bandurria utilizando la Red Neuronal de Inteligencia Artificial 
     Basic Pitch desarrollada por el laboratorio de IA de Spotify.
     """
     def log(msg):
+        if check_cancel and check_cancel():
+            raise InterruptedError("Transcripción cancelada por el usuario.")
         try:
             print(msg)
         except Exception:

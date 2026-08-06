@@ -322,8 +322,10 @@ def export_to_musicxml(notes, xml_path, bpm=120, title="Partitura de Bandurria")
     with open(xml_path, "w", encoding="utf-8") as f:
         f.write(final_xml)
 
-def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=220, fmax=1400, rms_threshold="auto", algorithm="pyin", seed_midi=76, log_callback=None):
+def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=220, fmax=1400, rms_threshold="auto", algorithm="pyin", seed_midi=76, log_callback=None, check_cancel=None):
     def log(msg):
+        if check_cancel and check_cancel():
+            raise InterruptedError("Transcripción cancelada por el usuario.")
         print(msg)
         if log_callback:
             log_callback(msg)
@@ -373,7 +375,8 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
             fmin=fmin,
             fmax=fmax,
             rms_threshold=rms_threshold,
-            log_callback=log_callback
+            log_callback=log_callback,
+            check_cancel=check_cancel
         )
         
     notes = []
