@@ -128,35 +128,17 @@ def transcribe_with_spotify_ai(audio_path, midi_path, bpm=120, subdivision=16,
     log("Aislando línea melódica monofónica pura (eliminando armónicos discordantes superpuestos)...")
     mono_notes = clean_to_monophonic_melody(raw_notes)
     
-    # Guiar y corregir desvíos de octava con la Nota Semilla si está disponible
-    if seed_midi and seed_midi > 0 and mono_notes:
-        seed_info = seed_tracking.get_info_from_midi(seed_midi)
-        log(f"🌱 Fijando la primera nota en la Nota Semilla inicial: {seed_info['note_es']} (Cifrado {seed_info['cifrado']})...")
-        
-        # Forzar la primera nota al tono de la semilla inicial
-        mono_notes[0]['pitch'] = int(seed_midi)
-        
-        guided_notes = [mono_notes[0]]
-        last_pitch = int(seed_midi)
-        for n in mono_notes[1:]:
-            p_diff = n['pitch'] - last_pitch
-            if abs(p_diff) >= 10:
-                cand_lower = n['pitch'] - 12
-                cand_upper = n['pitch'] + 12
-                if 54 <= cand_lower <= 81 and abs(cand_lower - last_pitch) < abs(n['pitch'] - last_pitch):
-                    n['pitch'] = cand_lower
-                elif 54 <= cand_upper <= 81 and abs(cand_upper - last_pitch) < abs(n['pitch'] - last_pitch):
-                    n['pitch'] = cand_upper
-            guided_notes.append(n)
-            last_pitch = n['pitch']
-        mono_notes = guided_notes
-
-    log(f"Notas tras monofonización melódica: {len(mono_notes)}")
-
     # 4. Unificación de Trémolos de Bandurria
     log("Unificando trémolos de púa de la bandurria...")
     merged_notes = merge_tremolo_notes(mono_notes, max_gap=0.18, max_pitch_diff=1.0)
-    log(f"Notas tras unificar trémolos: {len(merged_notes)}")
+    
+    # 5. Refinar contorno melódico de Bandurria con Nota Semilla si está disponible
+    if seed_midi and seed_midi > 0 and merged_notes:
+        seed_info = seed_tracking.get_info_from_midi(seed_midi)
+        log(f"🌱 Refinando contorno melódico de Bandurria con Nota Semilla inicial: {seed_info['note_es']} (Cifrado {seed_info['cifrado']})...")
+        merged_notes = seed_tracking.refine_bandurria_melodic_contour(merged_notes, seed_midi=seed_midi)
+        
+    log(f"Notas tras unificar trémolos y refinar contorno: {len(merged_notes)}")
     
     # 5. Cuantización Rítmica
     if bpm == "auto" or bpm is None or bpm <= 0:

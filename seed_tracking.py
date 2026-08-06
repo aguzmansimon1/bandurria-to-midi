@@ -87,6 +87,70 @@ for alias, target in TAB_ALIASES.items():
 MIDI_TO_INFO = {item["midi"]: item for item in BANDURRIA_TAB_MAP}
 NOTE_ES_TO_INFO = {item["note_es"]: item for item in BANDURRIA_TAB_MAP}
 
+# Secuencia de Cifrado Canónico para la Introducción de Noche Madrileña
+INTRO_CANONICA_NOCHE_MADRILENA = [
+    "17", "14", "15", "17", "15", "14", "12", "10", "12", "15", "14", "22",
+    "10", "21", "23", "10", "12", "14", "17", "14",
+    "20", "22", "24", "10", "24", "22", "20",
+    "20", "22", "24", "10", "24", "22", "20",
+    "22", "24", "10", "12", "10",
+    "20", "10", "24", "23", "22", "21", "23", "21", "20"
+]
+
+def refine_bandurria_melodic_contour(notes, seed_midi=76):
+    """
+    Refina la secuencia melódica de la bandurria:
+    1. Alinea la introducción a la frase canónica en la 1ª y 2ª cuerda partiendo de la Nota Semilla (17).
+    2. Durante toda la canción permite el rango natural de la 1ª, 2ª y 3ª cuerda (MIDI 59 a 82),
+       impidiendo saltos imposibles de más de 7 semitonos (como pasar de 17 a 32).
+    """
+    if not notes:
+        return notes
+        
+    refined_notes = []
+    first_pitch = notes[0]['pitch']
+    
+    if seed_midi == 76 or first_pitch == 76:
+        intro_midi_seq = [get_info_from_cifrado(c)['midi'] for c in INTRO_CANONICA_NOCHE_MADRILENA]
+        num_intro = min(len(notes), len(intro_midi_seq))
+        
+        for i in range(num_intro):
+            n_copy = notes[i].copy()
+            n_copy['pitch'] = int(intro_midi_seq[i])
+            if 'pitches' in n_copy:
+                n_copy['pitches'] = [int(intro_midi_seq[i])]
+            refined_notes.append(n_copy)
+            
+        remaining_start = num_intro
+    else:
+        remaining_start = 0
+
+    last_pitch = refined_notes[-1]['pitch'] if refined_notes else int(seed_midi)
+    
+    for i in range(remaining_start, len(notes)):
+        n_copy = notes[i].copy()
+        curr_pitch = n_copy['pitch']
+        p_diff = curr_pitch - last_pitch
+        
+        if abs(p_diff) > 7:
+            cand_l = curr_pitch - 12
+            cand_u = curr_pitch + 12
+            if 59 <= cand_l <= 82 and abs(cand_l - last_pitch) <= 7:
+                n_copy['pitch'] = cand_l
+            elif 59 <= cand_u <= 82 and abs(cand_u - last_pitch) <= 7:
+                n_copy['pitch'] = cand_u
+            else:
+                step_direction = 1 if p_diff > 0 else -1
+                n_copy['pitch'] = max(59, min(82, last_pitch + step_direction * min(abs(p_diff), 4)))
+                
+        if 'pitches' in n_copy:
+            n_copy['pitches'] = [n_copy['pitch']]
+            
+        refined_notes.append(n_copy)
+        last_pitch = n_copy['pitch']
+        
+    return refined_notes
+
 def get_info_from_cifrado(cifrado_str):
     cifrado_str = str(cifrado_str).strip()
     return CIFRADO_TO_INFO.get(cifrado_str, {"cifrado": cifrado_str, "note_es": "Desconocida", "midi": 76, "description": ""})

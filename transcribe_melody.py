@@ -520,6 +520,11 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
     log("Unificando trémolos de púa de la bandurria...")
     merged_notes = merge_tremolo_notes(filtered_notes, max_gap=0.18, max_pitch_diff=1.0)
     
+    # 2. Refinar contorno melódico de Bandurria si hay Nota Semilla
+    if seed_midi and seed_midi > 0 and merged_notes:
+        log("🌱 Refinando contorno melódico de Bandurria con Nota Semilla inicial...")
+        merged_notes = seed_tracking.refine_bandurria_melodic_contour(merged_notes, seed_midi=seed_midi)
+    
     # 2. Filtrado de notas espurias/graves de entrada (ruido de manejo pre-interpretación)
     if merged_notes:
         all_pitches = [n['pitch'] for n in merged_notes]
