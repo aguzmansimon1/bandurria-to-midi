@@ -184,12 +184,14 @@ def transcribe_with_spotify_ai(audio_path, midi_path, bpm=120, subdivision=16,
     try:
         base_path, _ = os.path.splitext(midi_path)
         cifrado_txt_path = base_path + "_cifrado.txt"
-        cifrado_str = seed_tracking.notes_to_cifrado_string(final_notes)
+        song_title = os.path.basename(base_path).replace("_", " ").title()
+        report_content = seed_tracking.format_cifrado_txt_report(final_notes, title=song_title)
         with open(cifrado_txt_path, "w", encoding="utf-8") as f:
-            f.write(f"Cifrado de Bandurria extraído ({len(final_notes)} notas):\n\n")
-            f.write(cifrado_str + "\n")
-        log(f"📝 Secuencia de Cifrado extraída ({len(final_notes)} notas):\n{cifrado_str}")
-        log(f"¡Éxito! Texto de Cifrado guardado en: {cifrado_txt_path}")
+            f.write(report_content)
+        
+        cifrado_summary_str = seed_tracking.notes_to_cifrado_string(final_notes)
+        log(f"📝 Secuencia de Cifrado Canónico extraída ({len(final_notes)} notas):\n{cifrado_summary_str}")
+        log(f"¡Éxito! Texto de Cifrado maquetado guardado en: {cifrado_txt_path}")
     except Exception as e:
         log(f"Aviso al exportar Cifrado: {str(e)}")
 

@@ -684,9 +684,10 @@ class BandurriaTranscriberGUI:
                         for n in inst.notes:
                             notes.append({'pitch': n.pitch, 'start': n.start})
                     notes = sorted(notes, key=lambda x: x['start'])
-                    cifrado_str = seed_tracking.notes_to_cifrado_string(notes)
+                    song_title = os.path.basename(base_path).replace("_", " ").title()
+                    report_content = seed_tracking.format_cifrado_txt_report(notes, title=song_title)
                     with open(txt_path, "w", encoding="utf-8") as f:
-                        f.write(f"Cifrado de Bandurria extraído ({len(notes)} notas):\n\n{cifrado_str}\n")
+                        f.write(report_content)
                     os.startfile(txt_path)
                     return
                 except Exception:

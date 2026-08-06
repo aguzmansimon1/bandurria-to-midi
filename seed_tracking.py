@@ -4,11 +4,52 @@ import pretty_midi
 import scipy.signal
 import os
 
-# Mapeo oficial completo entre Cifrado de Bandurria, Nota en Español y MIDI Pitch
-# Formato Cifrado: [Cuerda][Traste]
-# Ej: 17 = 1ª Cuerda Traste 7 = Mi5
+# Mapeo oficial canónico entre Cifrado de Bandurria, Nota en Español y MIDI Pitch
+# REGLA ESTRICTA DE BANDURRIA:
+# 6ª cuerda: 60 al 64 (Trastes 0-4)
+# 5ª cuerda: 50 al 54 (Trastes 0-4)
+# 4ª cuerda: 40 al 44 (Trastes 0-4)
+# 3ª cuerda: 30 al 34 (Trastes 0-4)
+# 2ª cuerda: 20 al 24 (Trastes 0-4)
+# 1ª cuerda: 10 al 120 (Trastes 0 en adelante para todo el rango agudo)
+
 BANDURRIA_TAB_MAP = [
-    # 1ª Cuerda (La4 = 10 / MIDI 69)
+    # 6ª Cuerda (Sol#2 = 60 al 64 / MIDI 44 a 48)
+    {"cifrado": "60", "note_es": "Sol#2", "description": "6ª Cuerda, Traste 0 (Aire)", "midi": 44},
+    {"cifrado": "61", "note_es": "La2", "description": "6ª Cuerda, Traste 1", "midi": 45},
+    {"cifrado": "62", "note_es": "La#2 / Sib2", "description": "6ª Cuerda, Traste 2", "midi": 46},
+    {"cifrado": "63", "note_es": "Si2", "description": "6ª Cuerda, Traste 3", "midi": 47},
+    {"cifrado": "64", "note_es": "Do3", "description": "6ª Cuerda, Traste 4", "midi": 48},
+
+    # 5ª Cuerda (Do#3 = 50 al 54 / MIDI 49 a 53)
+    {"cifrado": "50", "note_es": "Do#3", "description": "5ª Cuerda, Traste 0 (Aire)", "midi": 49},
+    {"cifrado": "51", "note_es": "Re3", "description": "5ª Cuerda, Traste 1", "midi": 50},
+    {"cifrado": "52", "note_es": "Re#3 / Mib3", "description": "5ª Cuerda, Traste 2", "midi": 51},
+    {"cifrado": "53", "note_es": "Mi3", "description": "5ª Cuerda, Traste 3", "midi": 52},
+    {"cifrado": "54", "note_es": "Fa3", "description": "5ª Cuerda, Traste 4", "midi": 53},
+
+    # 4ª Cuerda (Fa#3 = 40 al 44 / MIDI 54 a 58)
+    {"cifrado": "40", "note_es": "Fa#3", "description": "4ª Cuerda, Traste 0 (Aire)", "midi": 54},
+    {"cifrado": "41", "note_es": "Sol3", "description": "4ª Cuerda, Traste 1", "midi": 55},
+    {"cifrado": "42", "note_es": "Sol#3", "description": "4ª Cuerda, Traste 2", "midi": 56},
+    {"cifrado": "43", "note_es": "La3", "description": "4ª Cuerda, Traste 3", "midi": 57},
+    {"cifrado": "44", "note_es": "La#3 / Sib3", "description": "4ª Cuerda, Traste 4", "midi": 58},
+
+    # 3ª Cuerda (Si3 = 30 al 34 / MIDI 59 a 63)
+    {"cifrado": "30", "note_es": "Si3", "description": "3ª Cuerda, Traste 0 (Aire)", "midi": 59},
+    {"cifrado": "31", "note_es": "Do4", "description": "3ª Cuerda, Traste 1", "midi": 60},
+    {"cifrado": "32", "note_es": "Do#4", "description": "3ª Cuerda, Traste 2", "midi": 61},
+    {"cifrado": "33", "note_es": "Re4", "description": "3ª Cuerda, Traste 3", "midi": 62},
+    {"cifrado": "34", "note_es": "Re#4 / Mib4", "description": "3ª Cuerda, Traste 4", "midi": 63},
+
+    # 2ª Cuerda (Mi4 = 20 al 24 / MIDI 64 a 68)
+    {"cifrado": "20", "note_es": "Mi4", "description": "2ª Cuerda, Traste 0 (Aire)", "midi": 64},
+    {"cifrado": "21", "note_es": "Fa4", "description": "2ª Cuerda, Traste 1", "midi": 65},
+    {"cifrado": "22", "note_es": "Fa#4", "description": "2ª Cuerda, Traste 2", "midi": 66},
+    {"cifrado": "23", "note_es": "Sol4", "description": "2ª Cuerda, Traste 3", "midi": 67},
+    {"cifrado": "24", "note_es": "Sol#4", "description": "2ª Cuerda, Traste 4", "midi": 68},
+
+    # 1ª Cuerda (La4 = 10 al 120 / MIDI 69 en adelante)
     {"cifrado": "10", "note_es": "La4", "description": "1ª Cuerda, Traste 0 (Aire)", "midi": 69},
     {"cifrado": "11", "note_es": "La#4 / Sib4", "description": "1ª Cuerda, Traste 1", "midi": 70},
     {"cifrado": "12", "note_es": "Si4", "description": "1ª Cuerda, Traste 2", "midi": 71},
@@ -22,50 +63,27 @@ BANDURRIA_TAB_MAP = [
     {"cifrado": "110", "note_es": "Sol5", "description": "1ª Cuerda, Traste 10", "midi": 79},
     {"cifrado": "111", "note_es": "Sol#5", "description": "1ª Cuerda, Traste 11", "midi": 80},
     {"cifrado": "112", "note_es": "La5", "description": "1ª Cuerda, Traste 12", "midi": 81},
-
-    # 2ª Cuerda (Mi4 = 20 / MIDI 64)
-    {"cifrado": "20", "note_es": "Mi4", "description": "2ª Cuerda, Traste 0 (Aire)", "midi": 64},
-    {"cifrado": "21", "note_es": "Fa4", "description": "2ª Cuerda, Traste 1", "midi": 65},
-    {"cifrado": "22", "note_es": "Fa#4", "description": "2ª Cuerda, Traste 2", "midi": 66},
-    {"cifrado": "23", "note_es": "Sol4", "description": "2ª Cuerda, Traste 3", "midi": 67},
-    {"cifrado": "24", "note_es": "Sol#4", "description": "2ª Cuerda, Traste 4", "midi": 68},
-    {"cifrado": "25", "note_es": "La4", "description": "2ª Cuerda, Traste 5", "midi": 69},
-
-    # 3ª Cuerda (Si3 = 30 / MIDI 59)
-    {"cifrado": "30", "note_es": "Si3", "description": "3ª Cuerda, Traste 0 (Aire)", "midi": 59},
-    {"cifrado": "31", "note_es": "Do4", "description": "3ª Cuerda, Traste 1", "midi": 60},
-    {"cifrado": "32", "note_es": "Do#4", "description": "3ª Cuerda, Traste 2", "midi": 61},
-    {"cifrado": "33", "note_es": "Re4", "description": "3ª Cuerda, Traste 3", "midi": 62},
-    {"cifrado": "34", "note_es": "Re#4", "description": "3ª Cuerda, Traste 4", "midi": 63},
-    {"cifrado": "35", "note_es": "Mi4", "description": "3ª Cuerda, Traste 5", "midi": 64},
-
-    # 4ª Cuerda (Fa#3 = 40 / MIDI 54)
-    {"cifrado": "40", "note_es": "Fa#3", "description": "4ª Cuerda, Traste 0 (Aire)", "midi": 54},
-    {"cifrado": "41", "note_es": "Sol3", "description": "4ª Cuerda, Traste 1", "midi": 55},
-    {"cifrado": "42", "note_es": "Sol#3", "description": "4ª Cuerda, Traste 2", "midi": 56},
-    {"cifrado": "43", "note_es": "La3", "description": "4ª Cuerda, Traste 3", "midi": 57},
-    {"cifrado": "44", "note_es": "La#3", "description": "4ª Cuerda, Traste 4", "midi": 58},
-    {"cifrado": "45", "note_es": "Si3", "description": "4ª Cuerda, Traste 5", "midi": 59},
-
-    # 5ª Cuerda (Do#3 = 50 / MIDI 49)
-    {"cifrado": "50", "note_es": "Do#3", "description": "5ª Cuerda, Traste 0 (Aire)", "midi": 49},
-    {"cifrado": "51", "note_es": "Re3", "description": "5ª Cuerda, Traste 1", "midi": 50},
-    {"cifrado": "52", "note_es": "Re#3 / Mib3", "description": "5ª Cuerda, Traste 2", "midi": 51},
-    {"cifrado": "53", "note_es": "Mi3", "description": "5ª Cuerda, Traste 3", "midi": 52},
-    {"cifrado": "54", "note_es": "Fa3", "description": "5ª Cuerda, Traste 4", "midi": 53},
-    {"cifrado": "55", "note_es": "Fa#3", "description": "5ª Cuerda, Traste 5", "midi": 54},
-
-    # 6ª Cuerda (Sol#2 = 60 / MIDI 44)
-    {"cifrado": "60", "note_es": "Sol#2", "description": "6ª Cuerda, Traste 0 (Aire)", "midi": 44},
-    {"cifrado": "61", "note_es": "La2", "description": "6ª Cuerda, Traste 1", "midi": 45},
-    {"cifrado": "62", "note_es": "La#2 / Sib2", "description": "6ª Cuerda, Traste 2", "midi": 46},
-    {"cifrado": "63", "note_es": "Si2", "description": "6ª Cuerda, Traste 3", "midi": 47},
-    {"cifrado": "64", "note_es": "Do3", "description": "6ª Cuerda, Traste 4", "midi": 48},
-    {"cifrado": "65", "note_es": "Do#3", "description": "6ª Cuerda, Traste 5", "midi": 49},
+    {"cifrado": "113", "note_es": "La#5 / Sib5", "description": "1ª Cuerda, Traste 13", "midi": 82},
+    {"cifrado": "114", "note_es": "Si5", "description": "1ª Cuerda, Traste 14", "midi": 83},
+    {"cifrado": "115", "note_es": "Do6", "description": "1ª Cuerda, Traste 15", "midi": 84},
+    {"cifrado": "116", "note_es": "Do#6", "description": "1ª Cuerda, Traste 16", "midi": 85},
+    {"cifrado": "117", "note_es": "Re6", "description": "1ª Cuerda, Traste 17", "midi": 86},
 ]
 
-# Índices para búsqueda rápida
+# Aliases para permitir lectura si la tablatura de entrada usa trastes 5 en cuerdas inferiores
+TAB_ALIASES = {
+    "65": "50",
+    "55": "40",
+    "45": "30",
+    "35": "20",
+    "25": "10",
+}
+
 CIFRADO_TO_INFO = {item["cifrado"]: item for item in BANDURRIA_TAB_MAP}
+for alias, target in TAB_ALIASES.items():
+    if target in CIFRADO_TO_INFO:
+        CIFRADO_TO_INFO[alias] = CIFRADO_TO_INFO[target]
+
 MIDI_TO_INFO = {item["midi"]: item for item in BANDURRIA_TAB_MAP}
 NOTE_ES_TO_INFO = {item["note_es"]: item for item in BANDURRIA_TAB_MAP}
 
@@ -86,6 +104,53 @@ def notes_to_cifrado_string(notes):
         info = get_info_from_midi(n['pitch'])
         cifrados.append(info['cifrado'])
     return "-".join(cifrados)
+
+def format_cifrado_txt_report(notes, title="Bandurria"):
+    if not notes:
+        return "No hay notas detectadas para generar cifrado."
+        
+    cifrados = []
+    lines_summary = []
+    
+    current_line = []
+    for n in notes:
+        info = get_info_from_midi(n['pitch'])
+        cifrados.append(info['cifrado'])
+        current_line.append(info['cifrado'])
+        if len(current_line) == 12:
+            lines_summary.append(" - ".join(current_line))
+            current_line = []
+    if current_line:
+        lines_summary.append(" - ".join(current_line))
+        
+    secuencia_formateada = "\n".join(lines_summary)
+    
+    report = []
+    report.append("================================================================================")
+    report.append(f"🪕 TABLATURA Y CIFRADO CANÓNICO DE BANDURRIA ESPAÑOLA — {title}")
+    report.append("================================================================================")
+    report.append(f"Notas totales: {len(notes)}")
+    report.append("Regla de Cifrado: Trastes 0-4 por cuerda (6ª a 2ª) y 1ª Cuerda para notas agudas (10-120).")
+    report.append("Formato Cifrado: [Cuerda][Traste] (Ejemplo: 17 = 1ª Cuerda Traste 7 | 20 = 2ª Cuerda al aire)")
+    report.append("")
+    report.append("--------------------------------------------------------------------------------")
+    report.append("🎵 SECUENCIA COMPLETA DE CIFRADO PARA TOCAR:")
+    report.append("--------------------------------------------------------------------------------")
+    report.append(secuencia_formateada)
+    report.append("")
+    report.append("--------------------------------------------------------------------------------")
+    report.append("🎼 DETALLE CRONOLÓGICO NOTA POR NOTA:")
+    report.append("--------------------------------------------------------------------------------")
+    report.append(f"{'Nº':<5} | {'Tiempo (s)':<10} | {'Cifrado':<8} | {'Nota':<12} | {'Posición en la Bandurria'}")
+    report.append("-" * 78)
+    
+    for idx, n in enumerate(notes, 1):
+        info = get_info_from_midi(n['pitch'])
+        start_t = n.get('start', 0.0)
+        report.append(f"{idx:<5} | {start_t:<10.2f} | {info['cifrado']:<8} | {info['note_es']:<12} | {info['description']}")
+        
+    report.append("================================================================================")
+    return "\n".join(report)
 
 def transcribe_with_seed_note(y_harmonic, sr=22050, seed_midi=76, hop_length=512, n_fft=2048,
                                fmin=220, fmax=1400, rms_threshold=0.015):
