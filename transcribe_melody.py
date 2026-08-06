@@ -182,78 +182,145 @@ def export_to_musicxml(notes, xml_path, bpm=120, title="Partitura de Bandurria")
 
     part = ET.SubElement(score, 'part', id='P1')
 
-    divisions = 4 # Ticks por negra
+    divisions = 4  # Ticks por negra (16 ticks por compás 4/4)
+    beats_per_measure = 4
+    measure_ticks = beats_per_measure * divisions # 16
     beat_sec = 60.0 / (bpm if bpm > 0 else 120.0)
-    measure_dur_sec = 4.0 * beat_sec
+    measure_dur_sec = beats_per_measure * beat_sec
 
-    measures = {}
     sorted_notes = sorted(notes, key=lambda n: n['start'])
+    if not sorted_notes:
+        return
+        
+    max_sec = max(n['end'] for n in sorted_notes)
+    max_measure = int(max_sec // measure_dur_sec) + 1
 
+    measure_notes = {m: [] for m in range(1, max_measure + 1)}
     for n in sorted_notes:
-        start_sec = n['start']
-        dur_sec = max(0.125 * beat_sec, n['end'] - n['start'])
-        pitch = n['pitch']
-        is_accent = n.get('is_accent', False)
-        dynamic = n.get('dynamic', None)
+        m_num = int(n['start'] // measure_dur_sec) + 1
+        if m_num in measure_notes:
+            measure_notes[m_num].append(n)
 
-        m_num = int(start_sec // measure_dur_sec) + 1
-        if m_num not in measures:
-            m_elt = ET.SubElement(part, 'measure', number=str(m_num))
-            measures[m_num] = m_elt
-            if m_num == 1:
-                attr = ET.SubElement(m_elt, 'attributes')
-                ET.SubElement(attr, 'divisions').text = str(divisions)
-                key = ET.SubElement(attr, 'key')
-                ET.SubElement(key, 'fifths').text = '0'
-                time_elt = ET.SubElement(attr, 'time')
-                ET.SubElement(time_elt, 'beats').text = '4'
-                ET.SubElement(time_elt, 'beat-type').text = '4'
-                clef = ET.SubElement(attr, 'clef')
-                ET.SubElement(clef, 'sign').text = 'G'
-                ET.SubElement(clef, 'line').text = '2'
+    def add_rest(measure_elt, dur_ticks):
+        while dur_ticks > 0:
+            if dur_ticks >= 16:
+                d = 16
+                ntype = 'whole'
+            elif dur_ticks >= 8:
+                d = 8
+                ntype = 'half'
+            elif dur_ticks >= 4:
+                d = 4
+                ntype = 'quarter'
+            elif dur_ticks >= 2:
+                d = 2
+                ntype = 'eighth'
+            else:
+                d = 1
+                ntype = 'sixteenth'
+            
+            used = min(d, dur_ticks)
+            note_elt = ET.SubElement(measure_elt, 'note')
+            ET.SubElement(note_elt, 'rest')
+            ET.SubElement(note_elt, 'duration').text = str(used)
+            ET.SubElement(note_elt, 'type').text = ntype
+            dur_ticks -= used
 
-                direction = ET.SubElement(m_elt, 'direction', placement='above')
-                dir_type = ET.SubElement(direction, 'direction-type')
-                metro = ET.SubElement(dir_type, 'metronome')
-                ET.SubElement(metro, 'beat-unit').text = 'quarter'
-                ET.SubElement(metro, 'per-minute').text = str(int(bpm if bpm > 0 else 120))
+    for m_num in range(1, max_measure + 1):
+        m_elt = ET.SubElement(part, 'measure', number=str(m_num))
+        
+        if m_num == 1:
+            attr = ET.SubElement(m_elt, 'attributes')
+            ET.SubElement(attr, 'divisions').text = str(divisions)
+            key = ET.SubElement(attr, 'key')
+            ET.SubElement(key, 'fifths').text = '0'
+            time_elt = ET.SubElement(attr, 'time')
+            ET.SubElement(time_elt, 'beats').text = '4'
+            ET.SubElement(time_elt, 'beat-type').text = '4'
+            clef = ET.SubElement(attr, 'clef')
+            ET.SubElement(clef, 'sign').text = 'G'
+            ET.SubElement(clef, 'line').text = '2'
 
-        current_measure = measures[m_num]
+            direction = ET.SubElement(m_elt, 'direction', placement='above')
+            dir_type = ET.SubElement(direction, 'direction-type')
+            metro = ET.SubElement(dir_type, 'metronome')
+            ET.SubElement(metro, 'beat-unit').text = 'quarter'
+            ET.SubElement(metro, 'per-minute').text = str(int(bpm if bpm > 0 else 120))
 
-        if dynamic:
-            dir_dyn = ET.SubElement(current_measure, 'direction', placement='below')
-            dt = ET.SubElement(dir_dyn, 'direction-type')
-            dyn = ET.SubElement(dt, 'dynamics')
-            ET.SubElement(dyn, dynamic)
+        n_list = measure_notes[m_num]
+        current_tick = 0
 
-        note_elt = ET.SubElement(current_measure, 'note')
+        for n in n_list:
+            start_sec_in_m = n['start'] - (m_num - 1) * measure_dur_sec
+            note_start_tick = int(round((start_sec_in_m / beat_sec) * divisions))
+            note_start_tick = max(0, min(measure_ticks, note_start_tick))
 
-        step, alter, octave = midi_to_musicxml_pitch(pitch)
-        p_elt = ET.SubElement(note_elt, 'pitch')
-        ET.SubElement(p_elt, 'step').text = step
-        if alter != 0:
-            ET.SubElement(p_elt, 'alter').text = str(alter)
-        ET.SubElement(p_elt, 'octave').text = str(octave)
+            if note_start_tick > current_tick:
+                add_rest(m_elt, note_start_tick - current_tick)
+                current_tick = note_start_tick
 
-        duration_divs = max(1, int(round((dur_sec / beat_sec) * divisions)))
-        ET.SubElement(note_elt, 'duration').text = str(duration_divs)
+            if current_tick >= measure_ticks:
+                continue
 
-        if duration_divs >= 4:
-            note_type = 'quarter'
-        elif duration_divs >= 2:
-            note_type = 'eighth'
-        else:
-            note_type = 'sixteenth'
-        ET.SubElement(note_elt, 'type').text = note_type
+            dur_sec = max(0.125 * beat_sec, n['end'] - n['start'])
+            dur_ticks = int(round((dur_sec / beat_sec) * divisions))
+            dur_ticks = max(1, min(measure_ticks - current_tick, dur_ticks))
 
-        if is_accent:
-            notations = ET.SubElement(note_elt, 'notations')
-            articulations = ET.SubElement(notations, 'articulations')
-            ET.SubElement(articulations, 'accent')
+            pitch = n['pitch']
+            is_accent = n.get('is_accent', False)
+            dynamic = n.get('dynamic', None)
 
-    xml_str = minidom.parseString(ET.tostring(score)).toprettyxml(indent='  ')
+            if dynamic:
+                dir_dyn = ET.SubElement(m_elt, 'direction', placement='below')
+                dt = ET.SubElement(dir_dyn, 'direction-type')
+                dyn = ET.SubElement(dt, 'dynamics')
+                ET.SubElement(dyn, dynamic)
+
+            note_elt = ET.SubElement(m_elt, 'note')
+
+            step, alter, octave = midi_to_musicxml_pitch(pitch)
+            p_elt = ET.SubElement(note_elt, 'pitch')
+            ET.SubElement(p_elt, 'step').text = step
+            if alter != 0:
+                ET.SubElement(p_elt, 'alter').text = str(alter)
+            ET.SubElement(p_elt, 'octave').text = str(octave)
+
+            ET.SubElement(note_elt, 'duration').text = str(dur_ticks)
+
+            if dur_ticks >= 16:
+                ntype = 'whole'
+            elif dur_ticks >= 8:
+                ntype = 'half'
+            elif dur_ticks >= 4:
+                ntype = 'quarter'
+            elif dur_ticks >= 2:
+                ntype = 'eighth'
+            else:
+                ntype = 'sixteenth'
+            ET.SubElement(note_elt, 'type').text = ntype
+
+            if is_accent:
+                notations = ET.SubElement(note_elt, 'notations')
+                articulations = ET.SubElement(notations, 'articulations')
+                ET.SubElement(articulations, 'accent')
+
+            current_tick += dur_ticks
+
+        if current_tick < measure_ticks:
+            add_rest(m_elt, measure_ticks - current_tick)
+
+    raw_xml = minidom.parseString(ET.tostring(score)).toprettyxml(indent='  ')
+    lines = raw_xml.splitlines()
+    
+    xml_header = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">'
+    
+    if lines and lines[0].startswith('<?xml'):
+        final_xml = xml_header + '\n' + '\n'.join(lines[1:])
+    else:
+        final_xml = xml_header + '\n' + raw_xml
+
     with open(xml_path, "w", encoding="utf-8") as f:
-        f.write(xml_str)
+        f.write(final_xml)
 
 def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmin=220, fmax=1400, rms_threshold="auto", algorithm="pyin", seed_midi=76, log_callback=None):
     def log(msg):
