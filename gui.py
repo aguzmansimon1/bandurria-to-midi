@@ -363,14 +363,10 @@ class BandurriaTranscriberGUI:
             self.frame_audio_file.grid_remove()
             self.frame_seed.grid_remove()
             self.frame_tab_text.grid()
-        elif "Semilla" in mode_text:
+        else:
+            # En todos los modos de audio/vídeo (Spotify AI, Semilla, Síntesis, PyIN) mostramos la Nota Semilla Guía
             self.frame_audio_file.grid()
             self.frame_seed.grid()
-            self.frame_tab_text.grid_remove()
-        else:
-            # Modos Audio/Vídeo estándar (Spotify AI, PyIN, Spectral)
-            self.frame_audio_file.grid()
-            self.frame_seed.grid_remove()
             self.frame_tab_text.grid_remove()
 
     def set_progress(self, val):

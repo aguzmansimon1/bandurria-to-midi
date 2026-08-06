@@ -375,6 +375,8 @@ def transcribe_audio_to_midi(audio_path, midi_path, bpm=120, subdivision=16, fmi
             fmin=fmin,
             fmax=fmax,
             rms_threshold=rms_threshold,
+            algorithm=algorithm,
+            seed_midi=seed_midi,
             log_callback=log_callback,
             check_cancel=check_cancel
         )

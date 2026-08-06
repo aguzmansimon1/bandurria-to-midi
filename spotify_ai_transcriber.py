@@ -56,10 +56,10 @@ def clean_to_monophonic_melody(notes):
     return mono_notes
 
 def transcribe_with_spotify_ai(audio_path, midi_path, bpm=120, subdivision=16, 
-                               fmin=220, fmax=1400, rms_threshold="auto", log_callback=None, check_cancel=None):
+                               fmin=220, fmax=1400, rms_threshold="auto", algorithm="spotify_ai", seed_midi=76, log_callback=None, check_cancel=None):
     """
     Transcribe audio de bandurria utilizando la Red Neuronal de Inteligencia Artificial 
-    Basic Pitch desarrollada por el laboratorio de IA de Spotify.
+    Basic Pitch desarrollada por el laboratorio de IA de Spotify, guiada opcionalmente por Nota Semilla.
     """
     def log(msg):
         if check_cancel and check_cancel():
@@ -127,6 +127,26 @@ def transcribe_with_spotify_ai(audio_path, midi_path, bpm=120, subdivision=16,
     # 3. Monofonización Estricta (Línea Melódica Única) para eliminar notas discordantes simultáneas ("pam-pam-pam")
     log("Aislando línea melódica monofónica pura (eliminando armónicos discordantes superpuestos)...")
     mono_notes = clean_to_monophonic_melody(raw_notes)
+    
+    # Guiar y corregir desvíos de octava con la Nota Semilla si está disponible
+    if seed_midi and seed_midi > 0:
+        seed_info = seed_tracking.get_info_from_midi(seed_midi)
+        log(f"🌱 Guiando trayectoria de la IA con Nota Semilla inicial: {seed_info['note_es']} (Cifrado {seed_info['cifrado']})...")
+        guided_notes = []
+        last_pitch = seed_midi
+        for n in mono_notes:
+            p_diff = n['pitch'] - last_pitch
+            if abs(p_diff) >= 10:
+                cand_lower = n['pitch'] - 12
+                cand_upper = n['pitch'] + 12
+                if 54 <= cand_lower <= 81 and abs(cand_lower - last_pitch) < abs(n['pitch'] - last_pitch):
+                    n['pitch'] = cand_lower
+                elif 54 <= cand_upper <= 81 and abs(cand_upper - last_pitch) < abs(n['pitch'] - last_pitch):
+                    n['pitch'] = cand_upper
+            guided_notes.append(n)
+            last_pitch = n['pitch']
+        mono_notes = guided_notes
+
     log(f"Notas tras monofonización melódica: {len(mono_notes)}")
 
     # 4. Unificación de Trémolos de Bandurria
