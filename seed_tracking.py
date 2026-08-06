@@ -226,13 +226,10 @@ def transcribe_with_seed_note(y_harmonic, sr=22050, seed_midi=76, hop_length=512
     V = np.full((num_candidates, num_frames), -1e9, dtype=np.float32)
     backpointer = np.zeros((num_candidates, num_frames), dtype=int)
     
-    # Fijar la nota inicial dada por la Nota Semilla en t=0
+    # Fijar estrictamente la nota inicial dada por la Nota Semilla en t=0
     seed_idx = np.argmin(np.abs(midi_candidates - seed_midi))
+    V[:, 0] = -1e9
     V[seed_idx, 0] = salience[seed_idx, 0]
-    # También permitir vecinos inmediatos (+-1 semitono) a la semilla en t=0 con penalización leve
-    for i in range(num_candidates):
-        if abs(midi_candidates[i] - seed_midi) <= 1:
-            V[i, 0] = salience[i, 0] - 0.2 * abs(midi_candidates[i] - seed_midi)
 
     for t_step in range(1, num_frames):
         if rms[t_step] < rms_threshold:

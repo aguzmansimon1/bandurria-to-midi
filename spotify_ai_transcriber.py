@@ -129,12 +129,16 @@ def transcribe_with_spotify_ai(audio_path, midi_path, bpm=120, subdivision=16,
     mono_notes = clean_to_monophonic_melody(raw_notes)
     
     # Guiar y corregir desvíos de octava con la Nota Semilla si está disponible
-    if seed_midi and seed_midi > 0:
+    if seed_midi and seed_midi > 0 and mono_notes:
         seed_info = seed_tracking.get_info_from_midi(seed_midi)
-        log(f"🌱 Guiando trayectoria de la IA con Nota Semilla inicial: {seed_info['note_es']} (Cifrado {seed_info['cifrado']})...")
-        guided_notes = []
-        last_pitch = seed_midi
-        for n in mono_notes:
+        log(f"🌱 Fijando la primera nota en la Nota Semilla inicial: {seed_info['note_es']} (Cifrado {seed_info['cifrado']})...")
+        
+        # Forzar la primera nota al tono de la semilla inicial
+        mono_notes[0]['pitch'] = int(seed_midi)
+        
+        guided_notes = [mono_notes[0]]
+        last_pitch = int(seed_midi)
+        for n in mono_notes[1:]:
             p_diff = n['pitch'] - last_pitch
             if abs(p_diff) >= 10:
                 cand_lower = n['pitch'] - 12
