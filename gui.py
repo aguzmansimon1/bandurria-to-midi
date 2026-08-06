@@ -329,10 +329,13 @@ class BandurriaTranscriberGUI:
         self.post_frame.pack(fill="x", pady=(8, 0))
 
         self.btn_open_folder = ttk.Button(self.post_frame, text="📂 Abrir Carpeta", style="Secondary.TButton", command=self.open_output_folder)
-        self.btn_open_folder.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.btn_open_folder.pack(side="left", fill="x", expand=True, padx=(0, 2))
+
+        self.btn_open_txt = ttk.Button(self.post_frame, text="📜 Abrir Cifrado TXT", style="Secondary.TButton", command=self.open_cifrado_txt)
+        self.btn_open_txt.pack(side="left", fill="x", expand=True, padx=(2, 2))
 
         self.btn_open_midi = ttk.Button(self.post_frame, text="🎹 Abrir MIDI", style="Secondary.TButton", command=self.open_midi_file)
-        self.btn_open_midi.pack(side="left", fill="x", expand=True, padx=(2, 4))
+        self.btn_open_midi.pack(side="left", fill="x", expand=True, padx=(2, 2))
 
         self.btn_open_musescore = ttk.Button(self.post_frame, text="🎼 Abrir en MuseScore", style="Secondary.TButton", command=self.open_in_musescore)
         self.btn_open_musescore.pack(side="left", fill="x", expand=True, padx=(2, 0))
@@ -657,6 +660,33 @@ class BandurriaTranscriberGUI:
                 messagebox.showerror("Error", f"La carpeta de destino no existe:\n{folder}")
         else:
             messagebox.showerror("Error", "No hay ningún archivo seleccionado.")
+
+    def open_cifrado_txt(self):
+        midi_path = self.last_midi_output or self.entry_output.get().strip()
+        if midi_path:
+            abs_midi = os.path.abspath(os.path.normpath(midi_path))
+            base_path, _ = os.path.splitext(abs_midi)
+            txt_path = base_path + "_cifrado.txt"
+            if os.path.exists(txt_path):
+                os.startfile(txt_path)
+                return
+            elif os.path.exists(abs_midi):
+                import seed_tracking, pretty_midi
+                try:
+                    pm = pretty_midi.PrettyMIDI(abs_midi)
+                    notes = []
+                    for inst in pm.instruments:
+                        for n in inst.notes:
+                            notes.append({'pitch': n.pitch, 'start': n.start})
+                    notes = sorted(notes, key=lambda x: x['start'])
+                    cifrado_str = seed_tracking.notes_to_cifrado_string(notes)
+                    with open(txt_path, "w", encoding="utf-8") as f:
+                        f.write(f"Cifrado de Bandurria extraído ({len(notes)} notas):\n\n{cifrado_str}\n")
+                    os.startfile(txt_path)
+                    return
+                except Exception:
+                    pass
+        messagebox.showerror("Error", f"El archivo de Cifrado TXT no se encuentra en el disco:\n{midi_path}")
 
     def open_midi_file(self):
         midi_path = self.last_midi_output or self.entry_output.get().strip()
