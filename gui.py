@@ -1,5 +1,6 @@
 import sys
 import os
+import shutil
 import threading
 import subprocess
 import tkinter as tk
@@ -361,10 +362,9 @@ class BandurriaTranscriberGUI:
             self.entry_input.insert(0, filename)
             
             base_name = os.path.basename(os.path.splitext(filename)[0])
-            local_outputs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs")
-            os.makedirs(local_outputs_dir, exist_ok=True)
+            orig_dir = os.path.dirname(os.path.abspath(filename))
             
-            raw_out = os.path.join(local_outputs_dir, f"{base_name}.mid")
+            raw_out = os.path.join(orig_dir, f"{base_name}.mid")
             out_path = get_unique_midi_path(raw_out)
             
             self.entry_output.delete(0, tk.END)
@@ -536,20 +536,66 @@ class BandurriaTranscriberGUI:
         finally:
             self.root.after(0, lambda: self.btn_convert.config(state="normal"))
 
+    def move_files_to_original_dir(self, midi_path, audio_path):
+        if not audio_path or not os.path.exists(audio_path):
+            return midi_path
+            
+        orig_dir = os.path.dirname(os.path.abspath(audio_path))
+        if not os.path.exists(orig_dir):
+            return midi_path
+
+        current_midi_abs = os.path.abspath(os.path.normpath(midi_path))
+        current_xml_abs = os.path.splitext(current_midi_abs)[0] + ".musicxml"
+        
+        filename = os.path.basename(current_midi_abs)
+        target_midi_raw = os.path.join(orig_dir, filename)
+        
+        # Si ya está en orig_dir y no hay colisión salvo consigo mismo
+        if os.path.dirname(current_midi_abs).lower() == orig_dir.lower():
+            target_midi_final = current_midi_abs
+        else:
+            target_midi_final = get_unique_midi_path(target_midi_raw)
+
+        target_xml_final = os.path.splitext(target_midi_final)[0] + ".musicxml"
+
+        # Mover archivo MIDI si el destino difiere
+        if current_midi_abs != target_midi_final and os.path.exists(current_midi_abs):
+            try:
+                shutil.move(current_midi_abs, target_midi_final)
+            except Exception as e:
+                self.log(f"Aviso al mover MIDI a carpeta original: {str(e)}")
+
+        # Mover archivo MusicXML si existe
+        if os.path.exists(current_xml_abs):
+            if current_xml_abs != target_xml_final:
+                try:
+                    shutil.move(current_xml_abs, target_xml_final)
+                except Exception as e:
+                    self.log(f"Aviso al mover MusicXML a carpeta original: {str(e)}")
+
+        return target_midi_final
+
     def on_transcription_success(self, midi_path, accuracy_pct=None):
-        midi_path = os.path.abspath(os.path.normpath(midi_path))
-        self.last_midi_output = midi_path
+        audio_path = self.entry_input.get().strip()
+        final_midi = self.move_files_to_original_dir(midi_path, audio_path)
+        final_midi = os.path.abspath(os.path.normpath(final_midi))
+        final_xml = os.path.splitext(final_midi)[0] + ".musicxml"
+        
+        self.last_midi_output = final_midi
         self.entry_output.delete(0, tk.END)
-        self.entry_output.insert(0, midi_path)
+        self.entry_output.insert(0, final_midi)
         
         save_config({
-            "last_input_path": self.entry_input.get().strip(),
-            "last_output_path": midi_path
+            "last_input_path": audio_path,
+            "last_output_path": final_midi
         })
+        
+        self.log(f"📦 Archivos movidos a la carpeta original del audio:\n - MIDI: {final_midi}\n - MusicXML: {final_xml}")
+        
         acc_text = f"\n🎯 Porcentaje de Acierto Melódico: {accuracy_pct}%\n" if accuracy_pct is not None else ""
         messagebox.showinfo(
             "¡Transcripción Completada!", 
-            f"¡Archivo MIDI y MusicXML generados con éxito!{acc_text}\nRuta: {midi_path}\n\nPuedes hacer clic en 'Abrir Carpeta', 'Abrir MIDI' o 'Abrir en MuseScore'."
+            f"¡Archivo MIDI y MusicXML generados y movidos con éxito a la carpeta original!{acc_text}\nRuta: {final_midi}\n\nPuedes hacer clic en 'Abrir Carpeta', 'Abrir MIDI' o 'Abrir en MuseScore'."
         )
 
     def open_output_folder(self):
