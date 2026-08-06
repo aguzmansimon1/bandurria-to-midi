@@ -180,6 +180,19 @@ def transcribe_with_spotify_ai(audio_path, midi_path, bpm=120, subdivision=16,
     except Exception as e:
         log(f"Aviso al exportar MusicXML: {str(e)}")
 
+    # 7b. Generación de Texto de Cifrado de Bandurria
+    try:
+        base_path, _ = os.path.splitext(midi_path)
+        cifrado_txt_path = base_path + "_cifrado.txt"
+        cifrado_str = seed_tracking.notes_to_cifrado_string(final_notes)
+        with open(cifrado_txt_path, "w", encoding="utf-8") as f:
+            f.write(f"Cifrado de Bandurria extraído ({len(final_notes)} notas):\n\n")
+            f.write(cifrado_str + "\n")
+        log(f"📝 Secuencia de Cifrado extraída ({len(final_notes)} notas):\n{cifrado_str}")
+        log(f"¡Éxito! Texto de Cifrado guardado en: {cifrado_txt_path}")
+    except Exception as e:
+        log(f"Aviso al exportar Cifrado: {str(e)}")
+
     # 8. Evaluación de coincidencia
     log("📊 Calculando porcentaje de acierto melódico...")
     accuracy_pct = seed_tracking.evaluate_midi_accuracy(audio_path, midi_path)

@@ -609,6 +609,16 @@ class BandurriaTranscriberGUI:
                 except Exception as e:
                     self.log(f"Aviso al mover MusicXML a carpeta original: {str(e)}")
 
+        # Mover archivo Cifrado TXT si existe
+        current_txt_abs = os.path.splitext(current_midi_abs)[0] + "_cifrado.txt"
+        target_txt_final = os.path.splitext(target_midi_final)[0] + "_cifrado.txt"
+        if os.path.exists(current_txt_abs):
+            if current_txt_abs != target_txt_final:
+                try:
+                    shutil.move(current_txt_abs, target_txt_final)
+                except Exception as e:
+                    self.log(f"Aviso al mover Cifrado TXT a carpeta original: {str(e)}")
+
         return target_midi_final
 
     def on_transcription_success(self, midi_path, accuracy_pct=None):

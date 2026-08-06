@@ -80,6 +80,13 @@ def get_info_from_note_es(note_es_str):
 def get_info_from_midi(midi_num):
     return MIDI_TO_INFO.get(int(midi_num), {"cifrado": "17", "note_es": "Mi5", "midi": int(midi_num), "description": ""})
 
+def notes_to_cifrado_string(notes):
+    cifrados = []
+    for n in notes:
+        info = get_info_from_midi(n['pitch'])
+        cifrados.append(info['cifrado'])
+    return "-".join(cifrados)
+
 def transcribe_with_seed_note(y_harmonic, sr=22050, seed_midi=76, hop_length=512, n_fft=2048,
                                fmin=220, fmax=1400, rms_threshold=0.015):
     """
