@@ -314,19 +314,25 @@ class BandurriaTranscriberGUI:
         self.txt_log.config(yscrollcommand=scrollbar.set)
 
         # -------------------------------------------------------------
-        # Frame de Acción Final (Convertir / Detener)
+        # Línea 1: Controles de Ejecución (Convertir / Detener)
         # -------------------------------------------------------------
-        action_frame = ttk.Frame(main_container)
-        action_frame.pack(fill="x")
+        top_action_frame = ttk.Frame(main_container)
+        top_action_frame.pack(fill="x", pady=(0, 8))
 
-        self.btn_convert = ttk.Button(action_frame, text="🎵 CONVERTIR Y TRANSCRIBIR A MIDI", style="Primary.TButton", command=self.start_transcription_thread)
-        self.btn_convert.pack(side="left", fill="x", expand=True, ipady=7, padx=(0, 4))
+        top_action_frame.columnconfigure(0, weight=3)
+        top_action_frame.columnconfigure(1, weight=1)
 
-        self.btn_cancel = ttk.Button(action_frame, text="🛑 DETENER", style="Danger.TButton", command=self.cancel_transcription, state="disabled")
-        self.btn_cancel.pack(side="right", ipady=7, padx=(4, 0))
+        self.btn_convert = ttk.Button(top_action_frame, text="🎵 CONVERTIR Y TRANSCRIBIR A MIDI", style="Primary.TButton", command=self.start_transcription_thread)
+        self.btn_convert.grid(row=0, column=0, sticky="ew", padx=(0, 4), ipady=7)
 
-        self.post_frame = ttk.Frame(action_frame)
-        self.post_frame.pack(fill="x", pady=(8, 0))
+        self.btn_cancel = ttk.Button(top_action_frame, text="🛑 DETENER", style="Danger.TButton", command=self.cancel_transcription, state="disabled")
+        self.btn_cancel.grid(row=0, column=1, sticky="ew", padx=(4, 0), ipady=7)
+
+        # -------------------------------------------------------------
+        # Línea 2: Acciones del Resultado (Abrir Carpeta, Cifrado, MIDI, MuseScore)
+        # -------------------------------------------------------------
+        self.post_frame = ttk.Frame(main_container)
+        self.post_frame.pack(fill="x")
 
         self.post_frame.columnconfigure(0, weight=1, uniform="post_btn")
         self.post_frame.columnconfigure(1, weight=1, uniform="post_btn")
